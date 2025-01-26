@@ -19,6 +19,7 @@
 #endif
 
 #include <stdlib.h>
+#define CORES 4
 
 void Ped::Model::setup(std::vector<Ped::Tagent*> agentsInScenario, std::vector<Twaypoint*> destinationsInScenario, IMPLEMENTATION implementation)
 {
@@ -42,9 +43,62 @@ void Ped::Model::setup(std::vector<Ped::Tagent*> agentsInScenario, std::vector<T
 	setupHeatmapSeq();
 }
 
+void thread_func(const std::vector<Ped::Tagent*>& agents, int id) {
+  size_t agentsPerThread = agents.size() / CORES;
+
+  size_t start = agentsPerThread * id;
+  size_t end = start + agentsPerThread;
+  
+	for(int i = start; i<end; i++) {
+  		agents[i]->computeNextDesiredPosition();
+  		agents[i]->setX(agents[i]->getDesiredX());
+  		agents[i]->setY(agents[i]->getDesiredY());
+	}
+}
+
 void Ped::Model::tick()
 {
-	// EDIT HERE FOR ASSIGNMENT 1
+  switch(implementation) {
+    case SEQ: {
+      // 1. Retrieve each agent.
+      for (Ped::Tagent* agent : agents) {
+        // 2. Calculate its next desired position
+        agent->computeNextDesiredPosition();
+        // 3. Set its position to the calculated desired one
+        agent->setX(agent->getDesiredX());
+        agent->setY(agent->getDesiredY());
+      }
+      break;
+    }
+    case PTHREAD: {
+      std::vector<std::thread> threads;
+
+      for(int i =0;i<CORES;i++)
+      {
+        threads.push_back(std::thread(thread_func, std::cref(agents),i));
+      }
+      
+      for (size_t i = 0; i < CORES; i++)
+      {
+        threads[i].join();
+      }
+      break;
+    }
+    case OMP: {
+      // 1. Retrieve each agent.
+      #pragma omp parallel for num_threads(CORES)
+      for (Ped::Tagent* agent : agents) {
+        // 2. Calculate its next desired position
+        agent->computeNextDesiredPosition();
+        // 3. Set its position to the calculated desired one
+        agent->setX(agent->getDesiredX());
+        agent->setY(agent->getDesiredY());
+      }
+      break;
+    }
+    default:
+      cout << "undefined implementation\n";
+  }
 }
 
 ////////////
