@@ -19,6 +19,7 @@
 #endif
 
 #include <stdlib.h>
+#include <cmath>
 #define CORES 4
 
 void Ped::Model::setup(std::vector<Ped::Tagent*> agentsInScenario, std::vector<Twaypoint*> destinationsInScenario, IMPLEMENTATION implementation)
@@ -44,10 +45,10 @@ void Ped::Model::setup(std::vector<Ped::Tagent*> agentsInScenario, std::vector<T
 }
 
 void thread_func(const std::vector<Ped::Tagent*>& agents, int id) {
-  size_t agentsPerThread = agents.size() / CORES;
+  size_t agentsPerThread = std::ceil(agents.size() / CORES);
 
   size_t start = agentsPerThread * id;
-  size_t end = start + agentsPerThread;
+  size_t end = (id+1 == CORES) ? agents.size() : start + agentsPerThread;
   
 	for(int i = start; i<end; i++) {
   		agents[i]->computeNextDesiredPosition();
