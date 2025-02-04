@@ -11,17 +11,12 @@
 
 #include <stdlib.h>
 
-Ped::Tagent::Tagent(int posX, int posY) {
-	Ped::Tagent::init(posX, posY);
+Ped::Tagent::Tagent(size_t index) {
+	Ped::Tagent::init(index);
 }
 
-Ped::Tagent::Tagent(double posX, double posY) {
-	Ped::Tagent::init((int)round(posX), (int)round(posY));
-}
-
-void Ped::Tagent::init(int posX, int posY) {
-	x = posX;
-	y = posY;
+void Ped::Tagent::init(size_t index) {
+	index = index;
 	destination = NULL;
 	lastDestination = NULL;
 }

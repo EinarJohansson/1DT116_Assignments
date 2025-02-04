@@ -26,8 +26,7 @@ namespace Ped {
 
 	class Tagent {
 	public:
-		Tagent(int posX, int posY);
-		Tagent(double posX, double posY);
+		Tagent(size_t index);
 
 		// Returns the coordinates of the desired position
 		int getDesiredX() const { return desiredPositionX; }
@@ -69,7 +68,7 @@ namespace Ped {
 		deque<Twaypoint*> waypoints;
 
 		// Internal init function 
-		void init(int posX, int posY);
+		void init(size_t index);
 
 		// Returns the next destination to visit
 		Twaypoint* getNextDestination();

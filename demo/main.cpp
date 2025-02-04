@@ -170,7 +170,8 @@ int main(int argc, char*argv[]) {
             {
                 Ped::Model model;
                 ParseScenario parser(scenefile);
-                model.setup(parser.getAgents(), parser.getWaypoints(), Ped::SEQ);
+                // TODO: Byt ut parser.getAgents mot våra vektorer.
+                model.setup(parser.getAgents(), parser.getX(), parser.getY(), parser.getWaypoints(), Ped::SEQ);
                 Simulation *simulation = new TimingSimulation(model, max_steps);
 
                 // Simulation mode to use when profiling (without any GUI)
@@ -187,7 +188,7 @@ int main(int argc, char*argv[]) {
             {
                 Ped::Model model;
                 ParseScenario parser(scenefile);
-                model.setup(parser.getAgents(), parser.getWaypoints(), implementation_to_test);
+                model.setup(parser.getAgents(), parser.getX(), parser.getY(), parser.getWaypoints(), implementation_to_test);
                 Simulation *simulation = new TimingSimulation(model, max_steps);
                 // Simulation mode to use when profiling (without any GUI)
                 std::cout << "Running target version...\n";
@@ -203,7 +204,7 @@ int main(int argc, char*argv[]) {
         } else if (export_trace) {
                 Ped::Model model;
                 ParseScenario parser(scenefile);
-                model.setup(parser.getAgents(), parser.getWaypoints(), implementation_to_test);
+                model.setup(parser.getAgents(), parser.getX(), parser.getY(), parser.getWaypoints(), implementation_to_test);
 
                 Simulation *simulation = new ExportSimulation(model, max_steps, export_trace_file);
 
@@ -220,7 +221,7 @@ int main(int argc, char*argv[]) {
             // Graphics version
             Ped::Model model;
             ParseScenario parser(scenefile);
-            model.setup(parser.getAgents(), parser.getWaypoints(), implementation_to_test);
+            model.setup(parser.getAgents(), parser.getX(), parser.getY(), parser.getWaypoints(), implementation_to_test);
 
             QApplication app(argc, argv);
             MainWindow mainwindow(model);

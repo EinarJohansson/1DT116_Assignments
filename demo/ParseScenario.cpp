@@ -12,6 +12,16 @@
 
 #include <stdlib.h>
 
+
+#ifdef __arm__
+#include <arm_neon.h>
+#elif defined(__x86_64__)
+#include <immintrin.h>
+#include <emmintrin.h>
+#else
+#error "Unsupported Architecture"
+#endif
+
 // Comparator used to identify if two agents differ in their position
 bool positionComparator(Ped::Tagent *a, Ped::Tagent *b) {
 	// True if positions of agents differ
@@ -61,6 +71,9 @@ ParseScenario::ParseScenario(std::string filename, bool verbose)
 		double dx = agent->DoubleAttribute("dx");
 		double dy = agent->DoubleAttribute("dy");
 
+		agents_x = (uint32_t *) _mm_malloc(n * sizeof(int), 16);
+		agents_y = (uint32_t *) _mm_malloc(n * sizeof(int), 16);
+
 		if (verbose) {
             std::cout << "  Agent: x: " << x << ", y: " << y << ", n: " << n
 			<< ", dx: " << dx << ", dy: " << dy << std::endl;
@@ -69,9 +82,14 @@ ParseScenario::ParseScenario(std::string filename, bool verbose)
 		tempAgents.clear();
 		for (int i = 0; i < n; ++i)
 		{
-			int xPos = x + rand() / (RAND_MAX / dx) - dx / 2;
-			int yPos = y + rand() / (RAND_MAX / dy) - dy / 2;
-			Ped::Tagent *a = new Ped::Tagent(xPos, yPos);
+			uint32_t xPos = x + rand() / (RAND_MAX / dx) - dx / 2;
+			uint32_t yPos = y + rand() / (RAND_MAX / dy) - dy / 2;
+			// TODO: Lägg till i x och y vektorer
+			Ped::Tagent *a = new Ped::Tagent(i);
+
+			agents_x[i] = xPos;
+			agents_y[i] = yPos;
+			
 			tempAgents.push_back(a);
 		}
 
@@ -113,6 +131,16 @@ ParseScenario::ParseScenario(std::string filename, bool verbose)
 vector<Ped::Tagent*> ParseScenario::getAgents() const
 {
 	return agents;
+}
+
+uint32_t* ParseScenario::getX() const
+{
+	return agents_x;
+}
+
+uint32_t* ParseScenario::getY() const
+{
+	return agents_y;
 }
 
 std::vector<Ped::Twaypoint*> ParseScenario::getWaypoints()

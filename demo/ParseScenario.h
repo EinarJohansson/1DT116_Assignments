@@ -30,6 +30,8 @@ public:
 
 	// returns the collection of agents defined by this scenario
 	vector<Ped::Tagent*> getAgents() const;
+	uint32_t* getX() const;
+	uint32_t* getY() const;
 
 	// contains all defined waypoints
 	vector<Ped::Twaypoint*> getWaypoints();
@@ -39,11 +41,14 @@ private:
 
 	// final collection of all created agents
 	vector<Ped::Tagent*> agents;
+	uint32_t* agents_x;
+	uint32_t* agents_y;
 
 	// temporary collection of agents used to
 	// keep track of all agents that are generated
 	// within the current opened agents xml tag
 	vector<Ped::Tagent*> tempAgents;
+
 
 	// contains all defined waypoints
 	map<string, Ped::Twaypoint*> waypoints;

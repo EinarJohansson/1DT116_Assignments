@@ -6,6 +6,16 @@ CUDA_OBJECTS = $(CUDA_SOURCES:.cu=.co)
 CXXFLAGS = -fPIC -shared -lm -fopenmp -march=native
 CUDA_NVCC_FLAGS = --compiler-options -fPIC,-shared -Xcompiler -fopenmp -Xcompiler -march=native
 
+# Detect the architecture
+UNAME_S := $(shell uname -m)
+ifeq ($(UNAME_S),x86_64)
+    CXXFLAGS += -D__x86_64__
+    CXXFLAGS += -mavx -lm
+else ifeq ($(UNAME_S),arm64)
+    CC = clang
+    CXXFLAGS += -D__arm__
+endif
+
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS) $(CUDA_OBJECTS)

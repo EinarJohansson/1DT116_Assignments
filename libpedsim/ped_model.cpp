@@ -14,6 +14,15 @@
 #include <omp.h>
 #include <thread>
 
+#ifdef __arm__
+#include <arm_neon.h>
+#elif defined(__x86_64__)
+#include <immintrin.h>
+#include <emmintrin.h>
+#else
+#error "Unsupported Architecture"
+#endif
+
 #ifndef NOCDUA
 #include "cuda_testkernel.h"
 #endif
@@ -22,7 +31,12 @@
 #include <cmath>
 #define CORES 4
 
-void Ped::Model::setup(std::vector<Ped::Tagent*> agentsInScenario, std::vector<Twaypoint*> destinationsInScenario, IMPLEMENTATION implementation)
+void Ped::Model::setup(
+	std::vector<Ped::Tagent*> agentsInScenario, 
+	uint32_t* agents_x, 
+	uint32_t* agents_y,
+	std::vector<Twaypoint*> destinationsInScenario, 
+	IMPLEMENTATION implementation)
 {
 #ifndef NOCUDA
 	// Convenience test: does CUDA work on this machine?
@@ -40,9 +54,25 @@ void Ped::Model::setup(std::vector<Ped::Tagent*> agentsInScenario, std::vector<T
 	// Sets the chosen implemenation. Standard in the given code is SEQ
 	this->implementation = implementation;
 
+	agents_x = agents_x;
+	agents_y = agents_y;
+
 	// Set up heatmap (relevant for Assignment 4)
 	setupHeatmapSeq();
 }
+
+/* void init() {
+  //Using posix_memalign instead of _mm_malloc() just for portability.
+  //They do the same thing by aligning at 32B.
+  posix_memalign((void **)&X, MALLOC_ALIGN, SIZE*sizeof(float));
+  posix_memalign((void **)&Y, MALLOC_ALIGN, SIZE*sizeof(float));
+
+  //Fill X and Y
+  for (int i = 0; i < SIZE; i++) {
+      X[i] = 
+      Y[i] = 
+  }
+} */
 
 void thread_func(const std::vector<Ped::Tagent*>& agents, int id) {
   size_t agentsPerThread = std::ceil(agents.size() / CORES);
@@ -62,12 +92,17 @@ void Ped::Model::tick()
   switch(implementation) {
     case SEQ: {
       // 1. Retrieve each agent.
-      for (Ped::Tagent* agent : agents) {
+      for (size_t i = 0; i < agents.size(); i+=4)
+	  {
+		// Få ut 4 agenter med en instruktion
+		__m128i xP = _mm_load_si128(reinterpret_cast<const __m128i*>(&agents_x[i]));
+		__m128i yP = _mm_load_si128(reinterpret_cast<const __m128i*>(&agents_y[i]));
+
         // 2. Calculate its next desired position
-        agent->computeNextDesiredPosition();
+        //agents[i]->computeNextDesiredPosition();
         // 3. Set its position to the calculated desired one
-        agent->setX(agent->getDesiredX());
-        agent->setY(agent->getDesiredY());
+        //agents[i]->setX(agents[i]->getDesiredX());
+        //agents[i]->setY(agents[i]->getDesiredY());
       }
       break;
     }
