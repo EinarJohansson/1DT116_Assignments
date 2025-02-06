@@ -66,9 +66,12 @@ void Ped::Model::setup(
 		agents_x[i] = agents[i]->getX();
 		agents_y[i] = agents[i]->getY();
 
+		// TODO: All x and y are 0. FIX THIS!!!
 		dest_x[i] = agents[i]->getDestX();
 		dest_y[i] = agents[i]->getDestY();
 		dest_r[i] = agents[i]->getDestR();
+
+		std::cout << "Dest " << i << " x: " << dest_x[i] << " y: " << dest_y[i] << std::endl;
 	}
 
 	agents_x = agents_x;
@@ -151,8 +154,44 @@ void Ped::Model::tick()
 	  	{
 			__m128i x = _mm_load_si128((__m128i *) &agents_x[i]);
 			__m128i y = _mm_load_si128((__m128i *) &agents_y[i]);
+
+			// TODO: implement this using SIMD instructions
+
+			/* 
+			// Detta är från getNextDestination
+			Ped::Twaypoint* nextDestination = NULL;
+			bool agentReachedDestination = false;
+
+			if (destination != NULL) {
+				// compute if agent reached its current destination
+				double diffX = destination->getx() - x;
+				double diffY = destination->gety() - y;
+				double length = sqrt(diffX * diffX + diffY * diffY);
+				agentReachedDestination = length < destination->getr();
+			}
+
+			if ((agentReachedDestination || destination == NULL) && !waypoints.empty()) {
+				// Case 1: agent has reached destination (or has no current destination);
+				// get next destination if available
+				waypoints.push_back(destination);
+				nextDestination = waypoints.front();
+				waypoints.pop_front();
+			}
+			else {
+				// Case 2: agent has not yet reached destination, continue to move towards
+				// current destination
+				nextDestination = destination;
+			}
 			
-			__m128 destX = _mm_load_ps( &dest_x[i]);
+			// Detta är från computeNextDesiredPosition
+			double diffX = destination->getx() - x;
+			double diffY = destination->gety() - y;
+			double len = sqrt(diffX * diffX + diffY * diffY);
+			desiredPositionX = (int)round(x + diffX / len);
+			desiredPositionY = (int)round(y + diffY / len);
+			*/
+
+			__m128 destX = _mm_load_ps(&dest_x[i]);
 			__m128 destY = _mm_load_ps(&dest_y[i]);
 			__m128 destR = _mm_load_ps(&dest_r[i]);
 
@@ -167,6 +206,12 @@ void Ped::Model::tick()
 			_mm_store_si128((__m128i *) &agents_x[i], desiredPositionX);
 			_mm_store_si128((__m128i *) &agents_y[i], desiredPositionY);
      	}
+	
+		for (size_t j = 0; j < agents.size(); j++)
+		{
+			agents[j]->setX(agents_x[j]);
+			agents[j]->setY(agents_y[j]);
+		}
 		break;
 	}
     default:
