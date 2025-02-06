@@ -92,17 +92,14 @@ void Ped::Model::tick()
   switch(implementation) {
     case SEQ: {
       // 1. Retrieve each agent.
-      for (size_t i = 0; i < agents.size(); i+=4)
+      for (size_t i = 0; i < agents.size(); i++)
 	  {
-		// Få ut 4 agenter med en instruktion
-		__m128i xP = _mm_load_si128(reinterpret_cast<const __m128i*>(&agents_x[i]));
-		__m128i yP = _mm_load_si128(reinterpret_cast<const __m128i*>(&agents_y[i]));
-
         // 2. Calculate its next desired position
-        //agents[i]->computeNextDesiredPosition();
+        agents[i]->computeNextDesiredPosition();
+
         // 3. Set its position to the calculated desired one
-        //agents[i]->setX(agents[i]->getDesiredX());
-        //agents[i]->setY(agents[i]->getDesiredY());
+        agents[i]->setX(agents[i]->getDesiredX());
+		agents[i]->setY(agents[i]->getDesiredY());
       }
       break;
     }
@@ -132,6 +129,18 @@ void Ped::Model::tick()
       }
       break;
     }
+	case VECTOR: {
+		for (size_t i = 0; i < agents.size(); i+=CORES)
+	  	{
+			__m128i x = _mm_load_si128((__m128i *) &agents_x[i]);
+			__m128i y = _mm_load_si128((__m128i *) &agents_y[i]);
+			
+			// TODO: Get the destination x and y vectors
+
+
+     	}
+		break;
+	}
     default:
       cout << "undefined implementation\n";
   }
