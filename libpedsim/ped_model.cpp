@@ -32,9 +32,7 @@
 #define CORES 4
 
 void Ped::Model::setup(
-	std::vector<Ped::Tagent*> agentsInScenario, 
-	uint32_t* agents_x, 
-	uint32_t* agents_y,
+	std::vector<Ped::Tagent*> agentsInScenario,
 	std::vector<Twaypoint*> destinationsInScenario, 
 	IMPLEMENTATION implementation)
 {
@@ -53,6 +51,25 @@ void Ped::Model::setup(
 
 	// Sets the chosen implemenation. Standard in the given code is SEQ
 	this->implementation = implementation;
+
+	int size = (1 + (agents.size() / 4))*4;
+
+	agents_x = (uint32_t *) _mm_malloc(size* sizeof(uint32_t), 16);
+	agents_y = (uint32_t *) _mm_malloc(size* sizeof(uint32_t), 16);
+
+	dest_x = (float *) _mm_malloc(size * sizeof(float), 16);
+	dest_y = (float *) _mm_malloc(size * sizeof(float), 16);
+	dest_r = (float *) _mm_malloc(size * sizeof(float), 16);
+
+	// Initialize values of coordinates
+	for (int i = 0; i < agents.size(); i++) {
+		agents_x[i] = agents[i]->getX();
+		agents_y[i] = agents[i]->getY();
+
+		dest_x[i] = agents[i]->getDestX();
+		dest_y[i] = agents[i]->getDestY();
+		dest_r[i] = agents[i]->getDestR();
+	}
 
 	agents_x = agents_x;
 	agents_y = agents_y;
@@ -135,9 +152,20 @@ void Ped::Model::tick()
 			__m128i x = _mm_load_si128((__m128i *) &agents_x[i]);
 			__m128i y = _mm_load_si128((__m128i *) &agents_y[i]);
 			
-			// TODO: Get the destination x and y vectors
+			__m128 destX = _mm_load_ps( &dest_x[i]);
+			__m128 destY = _mm_load_ps(&dest_y[i]);
+			__m128 destR = _mm_load_ps(&dest_r[i]);
 
+			__m128 diffX = _mm_sub_ps(destX, _mm_cvtepi32_ps(x));
+			__m128 diffY = _mm_sub_ps(destY, _mm_cvtepi32_ps(y));
+			__m128 len = _mm_sqrt_ps(_mm_add_ps(_mm_mul_ps(diffX, diffX), _mm_mul_ps(diffY, diffY)));
 
+			__m128i desiredPositionX = _mm_cvtps_epi32(_mm_add_ps(_mm_cvtepi32_ps(x), _mm_div_ps(diffX, len)));
+			__m128i desiredPositionY = _mm_cvtps_epi32(_mm_add_ps(_mm_cvtepi32_ps(y), _mm_div_ps(diffY, len))); 
+
+			// Update agent x and y vectors with desired position
+			_mm_store_si128((__m128i *) &agents_x[i], desiredPositionX);
+			_mm_store_si128((__m128i *) &agents_y[i], desiredPositionY);
      	}
 		break;
 	}

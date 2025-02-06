@@ -21,6 +21,33 @@ void Ped::Tagent::init(size_t index) {
 	lastDestination = NULL;
 }
 
+float Ped::Tagent::getDestX() {
+	if (destination != NULL) {
+		return destination->getx();
+	}
+	else {
+		return 0;
+	}
+}
+
+float Ped::Tagent::getDestY() {
+	if (destination != NULL) {
+		return destination->gety();
+	}
+	else {
+		return 0;
+	}
+}
+
+float Ped::Tagent::getDestR() {
+	if (destination != NULL) {
+		return destination->getr();
+	}
+	else {
+		return 0;
+	}
+}
+
 void Ped::Tagent::computeNextDesiredPosition() {
 	destination = getNextDestination();
 	if (destination == NULL) {

@@ -44,6 +44,11 @@ namespace Ped {
 		int getX() const { return x; };
 		int getY() const { return y; };
 
+		// Position of agent defined by x and y
+		float getDestX();
+		float getDestY();
+		float getDestR();
+
 		// Adds a new waypoint to reach for this agent
 		void addWaypoint(Twaypoint* wp);
 
