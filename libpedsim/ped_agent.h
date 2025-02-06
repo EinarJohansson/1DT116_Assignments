@@ -26,7 +26,8 @@ namespace Ped {
 
 	class Tagent {
 	public:
-		Tagent(size_t index);
+		Tagent(int posX, int posY);
+		Tagent(double posX, double posY);
 
 		// Returns the coordinates of the desired position
 		int getDesiredX() const { return desiredPositionX; }
@@ -44,13 +45,11 @@ namespace Ped {
 		int getX() const { return x; };
 		int getY() const { return y; };
 
-		// Position of agent defined by x and y
+		// Adds a new waypoint to reach for this agent
+		void addWaypoint(Twaypoint* wp);
 		float getDestX();
 		float getDestY();
 		float getDestR();
-
-		// Adds a new waypoint to reach for this agent
-		void addWaypoint(Twaypoint* wp);
 
 	private:
 		Tagent() {};
@@ -73,7 +72,7 @@ namespace Ped {
 		deque<Twaypoint*> waypoints;
 
 		// Internal init function 
-		void init(size_t index);
+		void init(int posX, int posY);
 
 		// Returns the next destination to visit
 		Twaypoint* getNextDestination();

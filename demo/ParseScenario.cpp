@@ -71,7 +71,7 @@ ParseScenario::ParseScenario(std::string filename, bool verbose)
 		{
 			int xPos = x + rand() / (RAND_MAX / dx) - dx / 2;
 			int yPos = y + rand() / (RAND_MAX / dy) - dy / 2;
-			Ped::Tagent *a = new Ped::Tagent(i);
+			Ped::Tagent *a = new Ped::Tagent(xPos,yPos);
 			tempAgents.push_back(a);
 		}
 
