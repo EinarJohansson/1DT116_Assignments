@@ -65,7 +65,7 @@ void Ped::Model::setup(
 	for (int i = 0; i < agents.size(); i++) {
 		agents_x[i] = agents[i]->getX();
 		agents_y[i] = agents[i]->getY();
-
+		agents[i]->setDest();
 		// TODO: All x and y are 0. FIX THIS!!!
 		dest_x[i] = agents[i]->getDestX();
 		dest_y[i] = agents[i]->getDestY();
@@ -152,44 +152,9 @@ void Ped::Model::tick()
 	case VECTOR: {
 		for (size_t i = 0; i < agents.size(); i+=CORES)
 	  	{
+			//////////////// getNextDestination() ////////////////
 			__m128i x = _mm_load_si128((__m128i *) &agents_x[i]);
 			__m128i y = _mm_load_si128((__m128i *) &agents_y[i]);
-
-			// TODO: implement this using SIMD instructions
-
-			/* 
-			// Detta är från getNextDestination
-			Ped::Twaypoint* nextDestination = NULL;
-			bool agentReachedDestination = false;
-
-			if (destination != NULL) {
-				// compute if agent reached its current destination
-				double diffX = destination->getx() - x;
-				double diffY = destination->gety() - y;
-				double length = sqrt(diffX * diffX + diffY * diffY);
-				agentReachedDestination = length < destination->getr();
-			}
-
-			if ((agentReachedDestination || destination == NULL) && !waypoints.empty()) {
-				// Case 1: agent has reached destination (or has no current destination);
-				// get next destination if available
-				waypoints.push_back(destination);
-				nextDestination = waypoints.front();
-				waypoints.pop_front();
-			}
-			else {
-				// Case 2: agent has not yet reached destination, continue to move towards
-				// current destination
-				nextDestination = destination;
-			}
-			
-			// Detta är från computeNextDesiredPosition
-			double diffX = destination->getx() - x;
-			double diffY = destination->gety() - y;
-			double len = sqrt(diffX * diffX + diffY * diffY);
-			desiredPositionX = (int)round(x + diffX / len);
-			desiredPositionY = (int)round(y + diffY / len);
-			*/
 
 			__m128 destX = _mm_load_ps(&dest_x[i]);
 			__m128 destY = _mm_load_ps(&dest_y[i]);
@@ -199,6 +164,24 @@ void Ped::Model::tick()
 			__m128 diffY = _mm_sub_ps(destY, _mm_cvtepi32_ps(y));
 			__m128 len = _mm_sqrt_ps(_mm_add_ps(_mm_mul_ps(diffX, diffX), _mm_mul_ps(diffY, diffY)));
 
+
+			
+			__m128 agentReach = _mm_cmplt_ps(len, destR);
+			int mask = _mm_movemask_ps(agentReach);
+
+			for (int j = 0; j < 4; j++) {
+				if (mask & 1) {
+					if (i+j < agents.size()) {
+						// Destination är uppdaterad
+						agents.at(i+j)->updateWaypoints();
+						dest_x[i+j] = agents.at(i+j)->getDestX();
+						dest_y[i+j] = agents.at(i+j)->getDestY();
+						dest_r[i+j] = agents.at(i+j)->getDestR();
+					}
+				}
+				mask >>= 1;
+			}
+
 			__m128i desiredPositionX = _mm_cvtps_epi32(_mm_add_ps(_mm_cvtepi32_ps(x), _mm_div_ps(diffX, len)));
 			__m128i desiredPositionY = _mm_cvtps_epi32(_mm_add_ps(_mm_cvtepi32_ps(y), _mm_div_ps(diffY, len))); 
 
@@ -206,6 +189,7 @@ void Ped::Model::tick()
 			_mm_store_si128((__m128i *) &agents_x[i], desiredPositionX);
 			_mm_store_si128((__m128i *) &agents_y[i], desiredPositionY);
      	}
+
 	
 		for (size_t j = 0; j < agents.size(); j++)
 		{

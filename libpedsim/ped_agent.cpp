@@ -8,7 +8,7 @@
 #include "ped_agent.h"
 #include "ped_waypoint.h"
 #include <math.h>
-
+#include <iostream>
 #include <stdlib.h>
 
 Ped::Tagent::Tagent(int posX, int posY) {
@@ -33,6 +33,17 @@ float Ped::Tagent::getDestX() {
 	else {
 		return 0;
 	}
+}
+
+void Ped::Tagent::setDest()
+{ 
+	destination = waypoints.front(); 
+} 
+
+void Ped::Tagent::updateWaypoints() {
+		waypoints.push_back(destination);
+		destination = waypoints.front();
+		waypoints.pop_front();
 }
 
 float Ped::Tagent::getDestY() {
