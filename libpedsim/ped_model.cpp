@@ -65,8 +65,6 @@ void Ped::Model::setup(
 	for (int i = 0; i < agents.size(); i++) {
 		agents_x[i] = agents[i]->getX();
 		agents_y[i] = agents[i]->getY();
-		agents[i]->setDest();
-		// TODO: All x and y are 0. FIX THIS!!!
 		dest_x[i] = agents[i]->getDestX();
 		dest_y[i] = agents[i]->getDestY();
 		dest_r[i] = agents[i]->getDestR();
@@ -80,19 +78,6 @@ void Ped::Model::setup(
 	// Set up heatmap (relevant for Assignment 4)
 	setupHeatmapSeq();
 }
-
-/* void init() {
-  //Using posix_memalign instead of _mm_malloc() just for portability.
-  //They do the same thing by aligning at 32B.
-  posix_memalign((void **)&X, MALLOC_ALIGN, SIZE*sizeof(float));
-  posix_memalign((void **)&Y, MALLOC_ALIGN, SIZE*sizeof(float));
-
-  //Fill X and Y
-  for (int i = 0; i < SIZE; i++) {
-      X[i] = 
-      Y[i] = 
-  }
-} */
 
 void thread_func(const std::vector<Ped::Tagent*>& agents, int id) {
   size_t agentsPerThread = std::ceil(agents.size() / CORES);
@@ -164,8 +149,6 @@ void Ped::Model::tick()
 			__m128 diffY = _mm_sub_ps(destY, _mm_cvtepi32_ps(y));
 			__m128 len = _mm_sqrt_ps(_mm_add_ps(_mm_mul_ps(diffX, diffX), _mm_mul_ps(diffY, diffY)));
 
-
-			
 			__m128 agentReach = _mm_cmplt_ps(len, destR);
 			int mask = _mm_movemask_ps(agentReach);
 

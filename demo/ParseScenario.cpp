@@ -82,6 +82,11 @@ ParseScenario::ParseScenario(std::string filename, bool verbose)
 			for (auto a: tempAgents) {
 				a->addWaypoint(waypoints[id]);
 			}
+			
+			for (auto a: tempAgents) {
+				a->setDest();
+			}
+			
 		}
 		agents.insert(agents.end(), tempAgents.begin(), tempAgents.end());
 	}
