@@ -29,7 +29,7 @@
 
 #include <stdlib.h>
 #include <cmath>
-#define CORES 4
+#define CORES 8
 
 void Ped::Model::setup(
 	std::vector<Ped::Tagent*> agentsInScenario,
@@ -68,12 +68,7 @@ void Ped::Model::setup(
 		dest_x[i] = agents[i]->getDestX();
 		dest_y[i] = agents[i]->getDestY();
 		dest_r[i] = agents[i]->getDestR();
-
-		std::cout << "Dest " << i << " x: " << dest_x[i] << " y: " << dest_y[i] << std::endl;
 	}
-
-	agents_x = agents_x;
-	agents_y = agents_y;
 
 	// Set up heatmap (relevant for Assignment 4)
 	setupHeatmapSeq();
@@ -135,7 +130,7 @@ void Ped::Model::tick()
       break;
     }
 	case VECTOR: {
-		for (size_t i = 0; i < agents.size(); i+=CORES)
+		for (size_t i = 0; i < agents.size(); i+=4)
 	  	{
 			//////////////// getNextDestination() ////////////////
 			__m128i x = _mm_load_si128((__m128i *) &agents_x[i]);
