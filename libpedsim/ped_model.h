@@ -34,8 +34,11 @@ namespace Ped{
 			std::vector<Ped::Tagent*> agentsInScenario, 
 			std::vector<Twaypoint*> destinationsInScenario, 
 			IMPLEMENTATION implementation);
-		// Coordinates a time step in the scenario: move all agents by one step (if applicable).
-		void tick();
+		void split(std::vector<Ped::Tagent *> &temp_agents);
+        void thread_func(const std::vector<Ped::Tagent *> &agents, int id);
+        void omp_run(std::vector<Ped::Tagent *> &agents);
+        // Coordinates a time step in the scenario: move all agents by one step (if applicable).
+        void tick();
 
 		// Returns the agents of this scenario
 		const std::vector<Tagent*>& getAgents() const { return agents; };
@@ -60,8 +63,12 @@ namespace Ped{
 
 		// The agents in this scenario
 		std::vector<Tagent*> agents;
+		std::vector<Tagent*> agentsQ1;
+		std::vector<Tagent*> agentsQ2;
+		std::vector<Tagent*> agentsQ3;
+		std::vector<Tagent*> agentsQ4;
 
-		uint32_t* agents_x; 
+        uint32_t* agents_x; 
 		uint32_t* agents_y;
 
 		float* dest_x; 

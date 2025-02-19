@@ -29,7 +29,13 @@
 
 #include <stdlib.h>
 #include <cmath>
-#define CORES 8
+#define CORES 4
+#define REGIONS 4
+
+omp_lock_t Q1Q2lock;
+omp_lock_t Q2Q4lock;
+omp_lock_t Q3Q4lock;
+omp_lock_t Q1Q3lock;
 
 void Ped::Model::setup(
 	std::vector<Ped::Tagent*> agentsInScenario,
@@ -43,8 +49,17 @@ void Ped::Model::setup(
     std::cout << "Not compiled for CUDA" << std::endl;
 #endif
 
-	// Set 
-	agents = std::vector<Ped::Tagent*>(agentsInScenario.begin(), agentsInScenario.end());
+    agents = std::vector<Ped::Tagent *>(agentsInScenario.begin(), agentsInScenario.end());
+
+    agentsQ1 = std::vector<Ped::Tagent *>();
+    agentsQ2 = std::vector<Ped::Tagent *>();
+    agentsQ3 = std::vector<Ped::Tagent *>();
+    agentsQ4 = std::vector<Ped::Tagent *>();
+
+    omp_init_lock(&Q1Q2lock);
+    omp_init_lock(&Q2Q4lock);
+    omp_init_lock(&Q3Q4lock);
+    omp_init_lock(&Q1Q3lock);
 
 	// Set up destinations
 	destinations = std::vector<Ped::Twaypoint*>(destinationsInScenario.begin(), destinationsInScenario.end());
@@ -69,39 +84,141 @@ void Ped::Model::setup(
 		dest_y[i] = agents[i]->getDestY();
 		dest_r[i] = agents[i]->getDestR();
 	}
-
+    split(agents);
 	// Set up heatmap (relevant for Assignment 4)
 	setupHeatmapSeq();
 }
 
-void thread_func(const std::vector<Ped::Tagent*>& agents, int id) {
-  size_t agentsPerThread = std::ceil(agents.size() / CORES);
+void Ped::Model::split(std::vector<Ped::Tagent *> &temp_agents)
+{
+    for (Ped::Tagent *agent : temp_agents)
+    {
+        int xPos = agent->getX();
+        int yPos = agent->getY();
 
-  size_t start = agentsPerThread * id;
-  size_t end = (id+1 == CORES) ? agents.size() : start + agentsPerThread;
-  
-	for(int i = start; i<end; i++) {
-  		agents[i]->computeNextDesiredPosition();
-  		agents[i]->setX(agents[i]->getDesiredX());
-  		agents[i]->setY(agents[i]->getDesiredY());
-	}
+        if (xPos < 80) // Left quarters
+        {
+            if (yPos < 60) // Upper left quarter
+            {
+                agentsQ1.push_back(agent);
+            }
+            else // Lower left quarter
+            {
+                agentsQ2.push_back(agent);
+            }
+        }
+        else // Right quarters
+        {
+            if (yPos < 60) // Upper right quarter
+            {
+                agentsQ3.push_back(agent);
+            }
+            else // Lower right quarter
+            {
+                agentsQ4.push_back(agent);
+            }
+        }
+    }
+}
+
+void Ped::Model::thread_func(const std::vector<Ped::Tagent *> &agents, int id)
+{
+    size_t agentsPerThread = std::ceil(agents.size() / CORES);
+
+    size_t start = agentsPerThread * id;
+    size_t end = (id + 1 == CORES) ? agents.size() : start + agentsPerThread;
+
+    for (int i = start; i < end; i++)
+    {
+        agents[i]->computeNextDesiredPosition();
+
+        // agents[i]->setX(agents[i]->getDesiredX());
+        // agents[i]->setY(agents[i]->getDesiredY());
+
+        // 4. Assignment 3:
+        move(agents[i]);
+    }
+}
+
+// Körs varje tick för en kvadrant.
+void Ped::Model::omp_run(std::vector<Ped::Tagent *> &agents)
+{
+    for (Ped::Tagent *agent : agents)
+    {
+        // 2. Calculate its next desired position
+        agent->computeNextDesiredPosition();
+        int x = agent->getX();
+        int y = agent->getY();
+
+        if (!((x < 82 && x > 77) || (y < 62 && y > 57))) // Not in any boarder region
+        {
+            move(agent);
+        }
+        else if (x < 82 && x > 77) // In regions 7, 8, 11 or 12
+        {
+            if (y < 62 && y > 57) // In any of the inner squares
+            {
+                omp_set_lock(&Q2Q4lock);
+                omp_set_lock(&Q1Q3lock);
+                omp_set_lock(&Q3Q4lock);
+                omp_set_lock(&Q1Q2lock);
+                move(agent);
+                omp_unset_lock(&Q2Q4lock);
+                omp_unset_lock(&Q1Q3lock);
+                omp_unset_lock(&Q3Q4lock);
+                omp_unset_lock(&Q1Q2lock);
+            }
+            else if (y > 60) // In region 11 or 12
+            {
+                omp_set_lock(&Q3Q4lock);
+                move(agent);
+                omp_unset_lock(&Q3Q4lock);
+            }
+            else // In region 7 or 8
+            {
+                omp_set_lock(&Q1Q2lock);
+                move(agent);
+                omp_unset_lock(&Q1Q2lock);
+            }
+        }
+        else if (y < 62 && y > 57) // In regions 5, 6, 9 or 10
+        {
+            if (x > 80) // In region 9 or 10
+            {
+                omp_set_lock(&Q2Q4lock);
+                move(agent);
+                omp_unset_lock(&Q2Q4lock);
+            }
+            else // In region 5 or 6
+            {
+                omp_set_lock(&Q1Q3lock);
+                move(agent);
+                omp_unset_lock(&Q1Q3lock);
+            }
+        }
+    }
 }
 
 void Ped::Model::tick()
 {
-  switch(implementation) {
-    case SEQ: {
-      // 1. Retrieve each agent.
-      for (size_t i = 0; i < agents.size(); i++)
-	  {
-        // 2. Calculate its next desired position
-        agents[i]->computeNextDesiredPosition();
+    switch (implementation)
+    {
+    case SEQ:
+    {
+        // 1. Retrieve each agent.
+        for (size_t i = 0; i < agents.size(); i++)
+        {
+            // 2. Calculate its next desired position
+            agents[i]->computeNextDesiredPosition();
 
-        // 3. Set its position to the calculated desired one
-        agents[i]->setX(agents[i]->getDesiredX());
-		agents[i]->setY(agents[i]->getDesiredY());
-      }
-      break;
+            // 3. Set its position to the calculated desired one
+            // agents[i]->setX(agents[i]->getDesiredX());
+            // agents[i]->setY(agents[i]->getDesiredY());
+
+            // 4. Assignment 3:
+            move(agents[i]);
+        }
+        break;
     }
     case PTHREAD: {
       std::vector<std::thread> threads;
@@ -117,17 +234,20 @@ void Ped::Model::tick()
       }
       break;
     }
-    case OMP: {
-      // 1. Retrieve each agent.
-      #pragma omp parallel for num_threads(CORES)
-      for (Ped::Tagent* agent : agents) {
-        // 2. Calculate its next desired position
-        agent->computeNextDesiredPosition();
-        // 3. Set its position to the calculated desired one
-        agent->setX(agent->getDesiredX());
-        agent->setY(agent->getDesiredY());
-      }
-      break;
+    case OMP:
+    {
+        std::vector<Ped::Tagent *> *quadrants[REGIONS] = {&agentsQ1, &agentsQ2, &agentsQ3, &agentsQ4};
+        int thread_id;
+
+        omp_set_num_threads(CORES);
+#pragma omp parallel private(thread_id)
+        {
+            thread_id = omp_get_thread_num();
+            omp_run(*quadrants[thread_id]);
+            quadrants[thread_id]->clear();
+        }
+        split(agents);
+        break;
     }
 	case VECTOR: {
 		for (size_t i = 0; i < agents.size(); i+=4)
