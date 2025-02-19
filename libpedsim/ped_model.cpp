@@ -225,7 +225,7 @@ void Ped::Model::tick()
 
       for(int i =0;i<CORES;i++)
       {
-        threads.push_back(std::thread(thread_func, std::cref(agents),i));
+        threads.push_back(std::thread(&Ped::Model::thread_func, this, std::cref(agents), i));
       }
       
       for (size_t i = 0; i < CORES; i++)
