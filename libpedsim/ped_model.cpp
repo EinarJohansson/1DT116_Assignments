@@ -31,11 +31,12 @@
 #include <cmath>
 #define CORES 4
 #define REGIONS 4
+#define MAX_X 160
+#define MAX_Y 120
 
 omp_lock_t Q1Q2lock;
-omp_lock_t Q2Q4lock;
+omp_lock_t Q2Q3lock;
 omp_lock_t Q3Q4lock;
-omp_lock_t Q1Q3lock;
 
 void Ped::Model::setup(
 	std::vector<Ped::Tagent*> agentsInScenario,
@@ -50,16 +51,16 @@ void Ped::Model::setup(
 #endif
 
     agents = std::vector<Ped::Tagent *>(agentsInScenario.begin(), agentsInScenario.end());
-
+    temp = std::vector<Ped::Tagent *>();
     agentsQ1 = std::vector<Ped::Tagent *>();
     agentsQ2 = std::vector<Ped::Tagent *>();
     agentsQ3 = std::vector<Ped::Tagent *>();
     agentsQ4 = std::vector<Ped::Tagent *>();
 
+
     omp_init_lock(&Q1Q2lock);
-    omp_init_lock(&Q2Q4lock);
+    omp_init_lock(&Q2Q3lock);
     omp_init_lock(&Q3Q4lock);
-    omp_init_lock(&Q1Q3lock);
 
 	// Set up destinations
 	destinations = std::vector<Ped::Twaypoint*>(destinationsInScenario.begin(), destinationsInScenario.end());
@@ -88,39 +89,30 @@ void Ped::Model::setup(
 	// Set up heatmap (relevant for Assignment 4)
 	setupHeatmapSeq();
 }
-
+// Gå igenom alla agenter och lägg till agenterna i respektive kvadrant.
 void Ped::Model::split(std::vector<Ped::Tagent *> &temp_agents)
 {
     for (Ped::Tagent *agent : temp_agents)
     {
-        int xPos = agent->getX();
-        int yPos = agent->getY();
-
-        if (xPos < 80) // Left quarters
-        {
-            if (yPos < 60) // Upper left quarter
-            {
-                agentsQ1.push_back(agent);
-            }
-            else // Lower left quarter
-            {
-                agentsQ2.push_back(agent);
-            }
+        const int xPos = agent->getX();
+        
+        if (xPos<(MAX_X/REGIONS)){
+            // Quadrant 1 åt vänster
+            agentsQ1.push_back(agent);
         }
-        else // Right quarters
-        {
-            if (yPos < 60) // Upper right quarter
-            {
-                agentsQ3.push_back(agent);
-            }
-            else // Lower right quarter
-            {
-                agentsQ4.push_back(agent);
-            }
+        else if(xPos<2*(MAX_X/REGIONS)){
+            // Quadrant 1 åt vänster
+            agentsQ2.push_back(agent);
+        } 
+        else if(xPos<3*(MAX_X/REGIONS)){
+            // Quadrant 1 åt vänster
+            agentsQ3.push_back(agent);
+        }
+        else {
+            agentsQ4.push_back(agent);
         }
     }
 }
-
 void Ped::Model::thread_func(const std::vector<Ped::Tagent *> &agents, int id)
 {
     size_t agentsPerThread = std::ceil(agents.size() / CORES);
@@ -140,61 +132,73 @@ void Ped::Model::thread_func(const std::vector<Ped::Tagent *> &agents, int id)
     }
 }
 
-// Körs varje tick för en kvadrant.
+// Removes an agent from its old quadrant.
+void Ped::Model::sort(Ped::Tagent *agent, int xPrev)
+{
+   int xNew = agent->getX();
+
+   if (xPrev < 40 && xNew >= 40) {
+        temp.push_back(agent);
+        agentsQ1.erase(std::remove_if(agentsQ1.begin(), agentsQ1.end(),
+        [&](Ped::Tagent *a) { return a == agent; }),agentsQ1.end());
+   }
+   else if (xPrev >= 40 && xPrev < 80 && (xNew < 40 || xNew >= 80)) {
+        temp.push_back(agent);
+        agentsQ2.erase(std::remove_if(agentsQ2.begin(), agentsQ2.end(),
+        [&](Ped::Tagent *a) { return a == agent; }),agentsQ2.end());
+    }
+     
+    else if (xPrev >= 80 && xPrev < 120 && (xNew < 80 || xNew >= 120)) {
+        temp.push_back(agent);
+        agentsQ3.erase(std::remove_if(agentsQ3.begin(), agentsQ3.end(),
+        [&](Ped::Tagent *a) { return a == agent; }),agentsQ3.end());
+    } 
+   else if (xPrev >= 120 && xNew < 120) {
+        temp.push_back(agent);
+        agentsQ4.erase(std::remove_if(agentsQ4.begin(), agentsQ4.end(),
+        [&](Ped::Tagent *a) { return a == agent; }),agentsQ4.end());
+    }
+}
+
+// Gå igenom alla agenter och flytta dem till nästa position.
 void Ped::Model::omp_run(std::vector<Ped::Tagent *> &agents)
 {
     for (Ped::Tagent *agent : agents)
     {
         // 2. Calculate its next desired position
         agent->computeNextDesiredPosition();
-        int x = agent->getX();
-        int y = agent->getY();
+        int xPos = agent->getX();
 
-        if (!((x < 82 && x > 77) || (y < 62 && y > 57))) // Not in any boarder region
+        int region_size = MAX_X / REGIONS;
+        int q1_border = region_size;
+        int q2_border = 2* region_size;
+        int q3_border = 3* region_size;
+        int q4_border = 4* region_size;
+
+        if ((xPos < q1_border-2 || xPos > q3_border+1) || ((xPos%region_size) > 1) && ((xPos % region_size) < q1_border-2)) // Not in any boarder region
         {
             move(agent);
         }
-        else if (x < 82 && x > 77) // In regions 7, 8, 11 or 12
+        else if (xPos < q1_border+2 && xPos > q1_border-3) //REGION 1,2 LOCK
         {
-            if (y < 62 && y > 57) // In any of the inner squares
-            {
-                omp_set_lock(&Q2Q4lock);
-                omp_set_lock(&Q1Q3lock);
-                omp_set_lock(&Q3Q4lock);
-                omp_set_lock(&Q1Q2lock);
-                move(agent);
-                omp_unset_lock(&Q2Q4lock);
-                omp_unset_lock(&Q1Q3lock);
-                omp_unset_lock(&Q3Q4lock);
-                omp_unset_lock(&Q1Q2lock);
-            }
-            else if (y > 60) // In region 11 or 12
-            {
-                omp_set_lock(&Q3Q4lock);
-                move(agent);
-                omp_unset_lock(&Q3Q4lock);
-            }
-            else // In region 7 or 8
-            {
-                omp_set_lock(&Q1Q2lock);
-                move(agent);
-                omp_unset_lock(&Q1Q2lock);
-            }
+            omp_set_lock(&Q1Q2lock);
+            move(agent);
+            sort(agent, xPos);
+            omp_unset_lock(&Q1Q2lock);
         }
-        else if (y < 62 && y > 57) // In regions 5, 6, 9 or 10
+        else if (xPos < q2_border+2 && xPos > q2_border-3) // REGION 2,3 LOCK
         {
-            if (x > 80) // In region 9 or 10
-            {
-                omp_set_lock(&Q2Q4lock);
-                move(agent);
-                omp_unset_lock(&Q2Q4lock);
-            }
-            else // In region 5 or 6
-            {
-                omp_set_lock(&Q1Q3lock);
-                move(agent);
-                omp_unset_lock(&Q1Q3lock);
-            }
+            omp_set_lock(&Q2Q3lock);
+            move(agent);
+            sort(agent, xPos);
+            omp_unset_lock(&Q2Q3lock);
+        }
+        else  // REGION 3,4 LOCK
+        {
+            omp_set_lock(&Q3Q4lock);
+            move(agent);
+            sort(agent, xPos);
+            omp_unset_lock(&Q3Q4lock);
         }
     }
 }
@@ -243,10 +247,12 @@ void Ped::Model::tick()
 #pragma omp parallel private(thread_id)
         {
             thread_id = omp_get_thread_num();
+            // Flytta alla agenter inom en kvadrant.
             omp_run(*quadrants[thread_id]);
-            quadrants[thread_id]->clear();
         }
-        split(agents);
+        // Tilldela agenter till kvadrant vektorerna.
+        split(temp);
+        temp.clear();
         break;
     }
 	case VECTOR: {
