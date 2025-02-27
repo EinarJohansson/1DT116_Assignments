@@ -222,6 +222,7 @@ void Ped::Model::tick()
             // 4. Assignment 3:
             move(agents[i]);
         }
+        updateHeatmapSeq();
         break;
     }
     case PTHREAD: {
@@ -253,6 +254,7 @@ void Ped::Model::tick()
         // Tilldela agenter till kvadrant vektorerna.
         split(temp);
         temp.clear();
+        updateHeatmapCUDA();
         break;
     }
 	case VECTOR: {

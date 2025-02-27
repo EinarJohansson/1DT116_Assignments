@@ -117,6 +117,11 @@ void Ped::Model::updateHeatmapSeq()
 	}
 }
 
+// Updates the heatmap according to the agent positions in parallel using CUDA.
+void Ped::Model::updateHeatmapCUDA()
+{
+}
+
 int Ped::Model::getHeatmapSize() const {
 	return SCALED_SIZE;
 }
