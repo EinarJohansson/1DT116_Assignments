@@ -87,7 +87,14 @@ void Ped::Model::setup(
 	}
     split(agents);
 	// Set up heatmap (relevant for Assignment 4)
-	setupHeatmapSeq();
+    if (implementation == SEQ)
+    {
+        setupHeatmapSeq();
+    }
+    else
+    {
+        setupHeatmapCUDA();
+    }
 }
 // Gå igenom alla agenter och lägg till agenterna i respektive kvadrant.
 void Ped::Model::split(std::vector<Ped::Tagent *> &temp_agents)

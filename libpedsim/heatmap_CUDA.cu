@@ -1,29 +1,17 @@
-// Created for Low Level Parallel Programming 2017
-//
-// Implements the heatmap functionality. 
-//
 #include "ped_model.h"
 
-#include <cstdlib>
-#include <iostream>
-#include <cmath>
-using namespace std;
-
-// Memory leak check with msvc++
-#include <stdlib.h>
-
-// Sets up the heatmap
-void Ped::Model::setupHeatmapSeq()
+// TODO: Rewrite
+void Ped::Model::setupHeatmapCUDA()
 {
 	int *hm = (int*)calloc(SIZE*SIZE, sizeof(int));
 	int *shm = (int*)malloc(SCALED_SIZE*SCALED_SIZE*sizeof(int));
 	int *bhm = (int*)malloc(SCALED_SIZE*SCALED_SIZE*sizeof(int));
-
+    
 	heatmap = (int**)malloc(SIZE*sizeof(int*));
-
+    
 	scaled_heatmap = (int**)malloc(SCALED_SIZE*sizeof(int*));
 	blurred_heatmap = (int**)malloc(SCALED_SIZE*sizeof(int*));
-
+    
 	for (int i = 0; i < SIZE; i++)
 	{
 		heatmap[i] = hm + SIZE*i;
@@ -35,8 +23,8 @@ void Ped::Model::setupHeatmapSeq()
 	}
 }
 
-// Updates the heatmap according to the agent positions
-void Ped::Model::updateHeatmapSeq()
+// TODO: Rewrite
+void Ped::Model::updateHeatmapCUDA() 
 {
 	for (int x = 0; x < SIZE; x++)
 	{
@@ -115,8 +103,4 @@ void Ped::Model::updateHeatmapSeq()
 			blurred_heatmap[i][j] = 0x00FF0000 | value << 24;
 		}
 	}
-}
-
-int Ped::Model::getHeatmapSize() const {
-	return SCALED_SIZE;
 }
