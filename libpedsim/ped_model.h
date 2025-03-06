@@ -98,14 +98,14 @@ namespace Ped{
 #define CELLSIZE 5
 #define SCALED_SIZE SIZE*CELLSIZE
 
+		size_t heatmapPointerSize = SIZE * sizeof(int*);
+		size_t scaledHeatmapPointerSize = SCALED_SIZE * sizeof(int*);
+		size_t scaledHeatmapSize = SCALED_SIZE*SCALED_SIZE*sizeof(int);
+		size_t heatmapSize = SIZE*SIZE*sizeof(int);
+
 		// The heatmap representing the density of agents
-		int ** heatmap;
-
-		// The scaled heatmap that fits to the view
-		int ** scaled_heatmap;
-
-		// The final heatmap: blurred and scaled to fit the view
-		int ** blurred_heatmap;
+		int ** heatmap, **scaled_heatmap, **blurred_heatmap;
+		int *hm, *shm, *bhm;
 		
 		// SEQ
 		void setupHeatmapSeq();

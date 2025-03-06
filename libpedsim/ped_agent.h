@@ -55,16 +55,16 @@ namespace Ped {
 
 		void setDest();
 
+		// The agent's desired next position
+		int desiredPositionX;
+		int desiredPositionY;
+
 	private:
 		Tagent() {};
 
 		// The agent's current position
 		int x;
 		int y;
-
-		// The agent's desired next position
-		int desiredPositionX;
-		int desiredPositionY;
 
 		// The current destination (may require several steps to reach)
 		Twaypoint* destination;
