@@ -98,13 +98,15 @@ __global__ void blur(int *d_scaled_heatmap, int *d_blurred_heatmap) {
                 for (int k = -2; k <= 2; k++) {
                     for (int l = -2; l <= 2; l++) {
                         int weight = w[2 + k][2 + l];
-                        int idx = 0;
+                        int idx = (i + k) * SCALED_SIZE + (j + l); // BUG: FIX INDEXING
                         sum += weight * d_scaled_heatmap[idx];
+                        // sum += w[2 + k][2 + l] * scaled_heatmap[i + k][j + l];
                     }
                 }
                 int value = sum / WEIGHTSUM;
 
-                int idx = (x + cellX) + SCALED_SIZE * ( y + cellX); // TODO: fix indexing
+                // int idx = (x + cellX) + SCALED_SIZE * ( y + cellX);
+                int idx = i * SCALED_SIZE + j;
 
                 d_blurred_heatmap[idx] = 0x00FF0000 | (value << 24);
             }
@@ -169,16 +171,15 @@ void Ped::Model::updateHeatmapCUDA()
 	free(h_agents_desired_y);
 
     fadeHeatmap<<<SIZE, SIZE>>>(d_hm);
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    //CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     agentCount<<<1, agents.size()>>>(d_hm, d_agents_desired_x, d_agents_desired_y);
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    //CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     scaleData<<<SIZE, SIZE>>>(d_hm, d_shm);
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     blur<<<SIZE, SIZE>>>(d_shm, d_bhm);
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     CHECK_CUDA_ERROR(cudaMemcpy(hm, d_hm, heatmapSize, cudaMemcpyDeviceToHost));
     CHECK_CUDA_ERROR(cudaMemcpy(shm, d_shm, scaledHeatmapSize, cudaMemcpyDeviceToHost));
