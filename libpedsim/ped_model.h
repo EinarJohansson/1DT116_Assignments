@@ -104,7 +104,10 @@ namespace Ped{
 		size_t heatmapSize = SIZE*SIZE*sizeof(int);
 
 		// The heatmap representing the density of agents
-		int ** heatmap, **scaled_heatmap, **blurred_heatmap;
+		int **heatmap, **scaled_heatmap, **blurred_heatmap;
+		int **d_heatmap, **d_scaled_heatmap, **d_blurred_heatmap;
+		int *d_agents_desired_x, *d_agents_desired_y;
+		int *d_hm, *d_shm, *d_bhm;
 		int *hm, *shm, *bhm;
 		
 		// SEQ

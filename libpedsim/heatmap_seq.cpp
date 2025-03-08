@@ -15,9 +15,10 @@ using namespace std;
 // Sets up the heatmap
 void Ped::Model::setupHeatmapSeq()
 {
-	int *hm = (int*)calloc(SIZE*SIZE, sizeof(int));
-	int *shm = (int*)malloc(SCALED_SIZE*SCALED_SIZE*sizeof(int));
-	int *bhm = (int*)malloc(SCALED_SIZE*SCALED_SIZE*sizeof(int));
+	// int *hm, *shm, *bhm;
+	hm = (int*)calloc(SIZE*SIZE, sizeof(int));
+	shm = (int*)malloc(SCALED_SIZE*SCALED_SIZE*sizeof(int));
+	bhm = (int*)malloc(SCALED_SIZE*SCALED_SIZE*sizeof(int));
 
 	heatmap = (int**)malloc(SIZE*sizeof(int*));
 
