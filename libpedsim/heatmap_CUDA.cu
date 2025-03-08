@@ -28,11 +28,6 @@ __global__ void agentCount(int *d_heatmap, int *d_agents_desired_x, int *d_agent
 {
     size_t i = threadIdx.x;
 
-	if (i == 0) {
-		printf("d_agents_desired_x[0] = %d\n", d_agents_desired_x[0]);
-		printf("d_agents_desired_y[0] = %d\n\n", d_agents_desired_y[0]);
-	}
-
     int x = d_agents_desired_x[i];
     int y = d_agents_desired_y[i];
 
@@ -107,9 +102,10 @@ __global__ void blur(int *d_scaled_heatmap, int *d_blurred_heatmap) {
                         sum += weight * d_scaled_heatmap[idx];
                     }
                 }
-    
                 int value = sum / WEIGHTSUM;
-                int idx = 0;
+
+                int idx = (x + cellX) + SCALED_SIZE * ( y + cellX); // TODO: fix indexing
+
                 d_blurred_heatmap[idx] = 0x00FF0000 | (value << 24);
             }
         }
@@ -146,6 +142,8 @@ void Ped::Model::setupHeatmapCUDA()
 
 void Ped::Model::updateHeatmapCUDA()
 {
+	int *d_agents_desired_x, *d_agents_desired_y;
+
     size_t agentSize = agents.size();
 
     CHECK_CUDA_ERROR(cudaMemcpy(d_hm, hm, heatmapSize, cudaMemcpyHostToDevice));
@@ -167,9 +165,6 @@ void Ped::Model::updateHeatmapCUDA()
 	CHECK_CUDA_ERROR(cudaMemcpy(d_agents_desired_x, h_agents_desired_x, agentSize * sizeof(int), cudaMemcpyHostToDevice));
     CHECK_CUDA_ERROR(cudaMemcpy(d_agents_desired_y, h_agents_desired_y, agentSize * sizeof(int), cudaMemcpyHostToDevice));
 
-	printf("h_agents_desired_x[0] = %d\n", h_agents_desired_x[0]);
-	printf("h_agents_desired_y[0] = %d\n\n", h_agents_desired_y[0]);
-
 	free(h_agents_desired_x);
 	free(h_agents_desired_y);
 
@@ -183,8 +178,12 @@ void Ped::Model::updateHeatmapCUDA()
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     blur<<<SIZE, SIZE>>>(d_shm, d_bhm);
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     CHECK_CUDA_ERROR(cudaMemcpy(hm, d_hm, heatmapSize, cudaMemcpyDeviceToHost));
     CHECK_CUDA_ERROR(cudaMemcpy(shm, d_shm, scaledHeatmapSize, cudaMemcpyDeviceToHost));
     CHECK_CUDA_ERROR(cudaMemcpy(bhm, d_bhm, scaledHeatmapSize, cudaMemcpyDeviceToHost));
+
+	CHECK_CUDA_ERROR(cudaFree(d_agents_desired_x));
+	CHECK_CUDA_ERROR(cudaFree(d_agents_desired_y));
 }
