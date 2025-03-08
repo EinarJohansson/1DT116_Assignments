@@ -105,10 +105,10 @@ namespace Ped{
 
 		// The heatmap representing the density of agents
 		int **heatmap, **scaled_heatmap, **blurred_heatmap;
-		int **d_heatmap, **d_scaled_heatmap, **d_blurred_heatmap;
 		int *d_hm, *d_shm, *d_bhm;
 		int *hm, *shm, *bhm;
-		
+		int *d_agents_desired_x, *d_agents_desired_y;
+		size_t agentSize;
 		// SEQ
 		void setupHeatmapSeq();
 		void updateHeatmapSeq();

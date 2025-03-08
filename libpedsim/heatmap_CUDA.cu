@@ -12,12 +12,6 @@
         }                                                                   \
     } while (0)
 
-__global__ void initHeatmap(int **d_heatmap, int *d_hm, size_t size)
-{
-    size_t i = threadIdx.x + blockIdx.x * blockDim.x;
-    d_heatmap[i] = d_hm + size * i;
-}
-
 __global__ void fadeHeatmap(int *d_heatmap)
 {
     size_t i = threadIdx.x + blockIdx.x * SIZE;
@@ -115,39 +109,21 @@ __global__ void blur(int *d_scaled_heatmap, int *d_blurred_heatmap) {
     
 void Ped::Model::setupHeatmapCUDA() 
 {
-    // All kernel launches are asynchronous
-    // • Control returns to CPU before kernel finishes
-    // • Kernel executes after all previous CUDA calls have completed
-    // cudaMemcpy() is synchronous
+    this->setupHeatmapSeq(); // TODO: Parallelize heatmap creation
 
-
-    // cudaDeviceSynchronize()
-    // • Blocks host until all issued CUDA calls are complete
-    this->setupHeatmapSeq();
-
-
-    CHECK_CUDA_ERROR(cudaMalloc(&d_heatmap, heatmapPointerSize));
-    CHECK_CUDA_ERROR(cudaMalloc(&d_scaled_heatmap, scaledHeatmapPointerSize));
-    CHECK_CUDA_ERROR(cudaMalloc(&d_blurred_heatmap, scaledHeatmapPointerSize));
-
+    agentSize = agents.size();
 
     CHECK_CUDA_ERROR(cudaMalloc(&d_hm, heatmapSize));
     CHECK_CUDA_ERROR(cudaMalloc(&d_shm, scaledHeatmapSize));
     CHECK_CUDA_ERROR(cudaMalloc(&d_bhm, scaledHeatmapSize));
 
-    initHeatmap<<<1, SIZE>>>(d_heatmap, d_hm, SIZE);
-    initHeatmap<<<CELLSIZE, SIZE>>>(d_scaled_heatmap, d_shm, SCALED_SIZE);
-    initHeatmap<<<CELLSIZE, SIZE>>>(d_blurred_heatmap, d_bhm, SCALED_SIZE);
-
+	CHECK_CUDA_ERROR(cudaMalloc(&d_agents_desired_x, agentSize * sizeof(int)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_agents_desired_y, agentSize * sizeof(int)));
     cudaDeviceSynchronize();
 }
 
 void Ped::Model::updateHeatmapCUDA()
 {
-	int *d_agents_desired_x, *d_agents_desired_y;
-
-    size_t agentSize = agents.size();
-
     CHECK_CUDA_ERROR(cudaMemcpy(d_hm, hm, heatmapSize, cudaMemcpyHostToDevice));
     CHECK_CUDA_ERROR(cudaMemcpy(d_shm, shm, scaledHeatmapSize, cudaMemcpyHostToDevice));
     CHECK_CUDA_ERROR(cudaMemcpy(d_bhm, bhm, scaledHeatmapSize, cudaMemcpyHostToDevice));
@@ -160,9 +136,6 @@ void Ped::Model::updateHeatmapCUDA()
         h_agents_desired_x[i] = agents[i]->getDesiredX();
         h_agents_desired_y[i] = agents[i]->getDesiredY();
     }
-
-	CHECK_CUDA_ERROR(cudaMalloc(&d_agents_desired_x, agentSize * sizeof(int)));
-    CHECK_CUDA_ERROR(cudaMalloc(&d_agents_desired_y, agentSize * sizeof(int)));
 
 	CHECK_CUDA_ERROR(cudaMemcpy(d_agents_desired_x, h_agents_desired_x, agentSize * sizeof(int), cudaMemcpyHostToDevice));
     CHECK_CUDA_ERROR(cudaMemcpy(d_agents_desired_y, h_agents_desired_y, agentSize * sizeof(int), cudaMemcpyHostToDevice));
@@ -184,7 +157,4 @@ void Ped::Model::updateHeatmapCUDA()
     CHECK_CUDA_ERROR(cudaMemcpy(hm, d_hm, heatmapSize, cudaMemcpyDeviceToHost));
     CHECK_CUDA_ERROR(cudaMemcpy(shm, d_shm, scaledHeatmapSize, cudaMemcpyDeviceToHost));
     CHECK_CUDA_ERROR(cudaMemcpy(bhm, d_bhm, scaledHeatmapSize, cudaMemcpyDeviceToHost));
-
-	CHECK_CUDA_ERROR(cudaFree(d_agents_desired_x));
-	CHECK_CUDA_ERROR(cudaFree(d_agents_desired_y));
 }
