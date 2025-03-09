@@ -107,19 +107,46 @@ __global__ void blur(int *d_scaled_heatmap, int *d_blurred_heatmap) {
         }
     }
     
+__global__ void initHeatmap(int **d_heatmap, int *d_hm, int size)
+{
+    size_t i = threadIdx.x + blockIdx.x * SIZE; 
+    d_heatmap[i] = d_hm + size*i;
+}
+
 void Ped::Model::setupHeatmapCUDA() 
 {
-    this->setupHeatmapSeq(); // TODO: Parallelize heatmap creation
+    int **d_heatmap, **d_scaled_heatmap, **d_blurred_heatmap;
 
-    agentSize = agents.size();
+    heatmap = (int**)malloc(heatmapPointerSize);
+	scaled_heatmap = (int**)malloc(scaledHeatmapPointerSize);
+	blurred_heatmap = (int**)malloc(scaledHeatmapPointerSize);
+
+    hm = (int*)calloc(SIZE*SIZE, sizeof(int));
+	shm = (int*)malloc(scaledHeatmapSize);
+	bhm = (int*)malloc(scaledHeatmapSize);
+
+    CHECK_CUDA_ERROR(cudaMalloc(&d_heatmap, heatmapSize));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_scaled_heatmap, scaledHeatmapSize));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_blurred_heatmap, scaledHeatmapSize));
 
     CHECK_CUDA_ERROR(cudaMalloc(&d_hm, heatmapSize));
     CHECK_CUDA_ERROR(cudaMalloc(&d_shm, scaledHeatmapSize));
     CHECK_CUDA_ERROR(cudaMalloc(&d_bhm, scaledHeatmapSize));
 
+    agentSize = agents.size();
 	CHECK_CUDA_ERROR(cudaMalloc(&d_agents_desired_x, agentSize * sizeof(int)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_agents_desired_y, agentSize * sizeof(int)));
-    cudaDeviceSynchronize();
+
+    // init heatmap
+    initHeatmap<<<1, SIZE>>>(d_heatmap, hm, SIZE);
+    initHeatmap<<<CELLSIZE, SIZE>>>(d_scaled_heatmap, shm, SCALED_SIZE);
+    initHeatmap<<<CELLSIZE, SIZE>>>(d_blurred_heatmap, bhm, SCALED_SIZE);
+
+    CHECK_CUDA_ERROR(cudaMemcpy(heatmap, d_heatmap, heatmapPointerSize, cudaMemcpyDeviceToHost));
+    CHECK_CUDA_ERROR(cudaMemcpy(scaled_heatmap, d_scaled_heatmap, scaledHeatmapPointerSize, cudaMemcpyDeviceToHost)); 
+    CHECK_CUDA_ERROR(cudaMemcpy(blurred_heatmap, d_blurred_heatmap, scaledHeatmapPointerSize, cudaMemcpyDeviceToHost));
+
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 }
 
 void Ped::Model::updateHeatmapCUDA()
