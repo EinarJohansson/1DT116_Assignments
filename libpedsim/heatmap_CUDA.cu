@@ -160,6 +160,9 @@ void Ped::Model::setupHeatmapCUDA()
     CHECK_CUDA_ERROR(cudaMalloc(&d_bhm, scaledHeatmapSize));
 
     agentSize = agents.size();
+    h_agents_desired_x = (int*)malloc(agentSize * sizeof(int));
+    h_agents_desired_y = (int*)malloc(agentSize * sizeof(int));
+
 	CHECK_CUDA_ERROR(cudaMalloc(&d_agents_desired_x, agentSize * sizeof(int)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_agents_desired_y, agentSize * sizeof(int)));
 
@@ -177,9 +180,6 @@ void Ped::Model::setupHeatmapCUDA()
 
 void Ped::Model::updateHeatmapCUDA()
 {
-    int *h_agents_desired_x = (int*)malloc(agentSize * sizeof(int));
-    int *h_agents_desired_y = (int*)malloc(agentSize * sizeof(int));
-
     for (size_t i = 0; i < agentSize; i++)
     {
         h_agents_desired_x[i] = agents[i]->getDesiredX();
@@ -188,10 +188,6 @@ void Ped::Model::updateHeatmapCUDA()
 
 	CHECK_CUDA_ERROR(cudaMemcpy(d_agents_desired_x, h_agents_desired_x, agentSize * sizeof(int), cudaMemcpyHostToDevice));
     CHECK_CUDA_ERROR(cudaMemcpy(d_agents_desired_y, h_agents_desired_y, agentSize * sizeof(int), cudaMemcpyHostToDevice));
-
-    CHECK_CUDA_ERROR(cudaMemcpy(d_hm, hm, heatmapSize, cudaMemcpyHostToDevice));
-    CHECK_CUDA_ERROR(cudaMemcpy(d_shm, shm, scaledHeatmapSize, cudaMemcpyHostToDevice));
-    CHECK_CUDA_ERROR(cudaMemcpy(d_bhm, bhm, scaledHeatmapSize, cudaMemcpyHostToDevice));
 
     fadeHeatmap<<<SIZE, SIZE>>>(d_hm);
     // CHECK_CUDA_ERROR(cudaDeviceSynchronize());
@@ -211,10 +207,8 @@ void Ped::Model::updateHeatmapCUDA()
 
     // Launch kernel with proper dimensions
     blur<<<gridDims, blockDims>>>(d_shm, d_bhm);
-    CHECK_CUDA_ERROR(cudaMemcpy(hm, d_hm, heatmapSize, cudaMemcpyDeviceToHost));
-    CHECK_CUDA_ERROR(cudaMemcpy(shm, d_shm, scaledHeatmapSize, cudaMemcpyDeviceToHost));
-    CHECK_CUDA_ERROR(cudaMemcpy(bhm, d_bhm, scaledHeatmapSize, cudaMemcpyDeviceToHost));
 
-    free(h_agents_desired_x);
-	free(h_agents_desired_y);
+    // CHECK_CUDA_ERROR(cudaMemcpy(hm, d_hm, heatmapSize, cudaMemcpyDeviceToHost));
+    // CHECK_CUDA_ERROR(cudaMemcpy(shm, d_shm, scaledHeatmapSize, cudaMemcpyDeviceToHost));
+    CHECK_CUDA_ERROR(cudaMemcpy(bhm, d_bhm, scaledHeatmapSize, cudaMemcpyDeviceToHost));
 }

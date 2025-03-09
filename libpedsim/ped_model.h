@@ -108,6 +108,8 @@ namespace Ped{
 		int *d_hm, *d_shm, *d_bhm;
 		int *hm, *shm, *bhm;
 		int *d_agents_desired_x, *d_agents_desired_y;
+		int *h_agents_desired_x, *h_agents_desired_y;
+		
 		size_t agentSize;
 		// SEQ
 		void setupHeatmapSeq();
