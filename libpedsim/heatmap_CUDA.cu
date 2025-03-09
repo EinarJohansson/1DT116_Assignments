@@ -59,57 +59,83 @@ __global__ void scaleData(int *d_heatmap, int *d_scaled_heatmap) {
     }
 }
 
-__global__ void blur(int *d_scaled_heatmap, int *d_blurred_heatmap) {
-    #define WEIGHTSUM 273
-        const int w[5][5] = {
-            {1, 4, 7, 4, 1},
-            {4, 16, 26, 16, 4},
-            {7, 26, 41, 26, 7},
-            {4, 16, 26, 16, 4},
-            {1, 4, 7, 4, 1}};
-    
-        size_t x = threadIdx.x; // 0 to SIZE-1
-        size_t y = blockIdx.x;  // 0 to SIZE-1
-    
-        for (int cellY = 0; cellY < CELLSIZE; cellY++) {
-            for (int cellX = 0; cellX < CELLSIZE; cellX++) {
-                size_t i = y * CELLSIZE + cellY;
-                size_t j = x * CELLSIZE + cellX;
-    
-                // Boundary checks
-                if (i < 2) {
-                    i = 2;
-                } else if (i >= SCALED_SIZE - 2) {
-                    i = SCALED_SIZE - 3;
-                }
-                if (j < 2) {
-                    j = 2;
-                } else if (j >= SCALED_SIZE - 2) {
-                    j = SCALED_SIZE - 3;
-                }
-    
-                int sum = 0;
-                for (int k = -2; k <= 2; k++) {
-                    for (int l = -2; l <= 2; l++) {
-                        int weight = w[2 + k][2 + l];
-                        int idx = (i + k) * SCALED_SIZE + (j + l); // BUG: FIX INDEXING
-                        sum += weight * d_scaled_heatmap[idx];
-                        // sum += w[2 + k][2 + l] * scaled_heatmap[i + k][j + l];
-                    }
-                }
-                int value = sum / WEIGHTSUM;
+__global__ void blur(int *d_scaled_heatmap, int *d_blurred_heatmap) {   
+    const int w[5][5] = {
+        { 1, 4, 7, 4, 1 },
+        { 4, 16, 26, 16, 4 },
+        { 7, 26, 41, 26, 7 },
+        { 4, 16, 26, 16, 4 },
+        { 1, 4, 7, 4, 1 }
+    };
 
-                // int idx = (x + cellX) + SCALED_SIZE * ( y + cellX);
-                int idx = i * SCALED_SIZE + j;
+    // Calculate thread and block indices
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+    int bx = blockIdx.x * blockDim.x;
+    int by = blockIdx.y * blockDim.y;
 
-                d_blurred_heatmap[idx] = 0x00FF0000 | (value << 24);
-            }
+    // Determine the size of the shared memory area
+    #define SHARED_SIZE (16 + 4) // 16x16 block + 2 halo on each side
+    __shared__ int sharedMem[SHARED_SIZE][SHARED_SIZE];
+
+    // Global index
+    int col = bx + tx;
+    int row = by + ty;
+
+    // Load main data into shared memory if within bounds
+    if (row < SCALED_SIZE && col < SCALED_SIZE) {
+        sharedMem[ty + 2][tx + 2] = d_scaled_heatmap[row * SCALED_SIZE + col];
+    }
+
+    // Load top and bottom halo
+    if (ty < 2) {
+        // Top halo (row - 2)
+        int halo_row = row - 2;
+        if (halo_row >= 0 && col < SCALED_SIZE) {
+            sharedMem[ty][tx + 2] = d_scaled_heatmap[halo_row * SCALED_SIZE + col];
+        }
+        // Bottom halo (row + 2)
+        halo_row = row + 2;
+        if (halo_row < SCALED_SIZE && col < SCALED_SIZE) {
+            sharedMem[ty + blockDim.y + 2][tx + 2] = d_scaled_heatmap[halo_row * SCALED_SIZE + col];
         }
     }
-    
+
+    // Load left and right halo
+    if (tx < 2) {
+        // Left halo (col - 2)
+        int halo_col = col - 2;
+        if (halo_col >= 0 && row < SCALED_SIZE) {
+            sharedMem[ty + 2][tx] = d_scaled_heatmap[row * SCALED_SIZE + halo_col];
+        }
+        // Right halo (col + 2)
+        halo_col = col + 2;
+        if (halo_col < SCALED_SIZE && row < SCALED_SIZE) {
+            sharedMem[ty + 2][tx + blockDim.x + 2] = d_scaled_heatmap[row * SCALED_SIZE + halo_col];
+        }
+    }
+
+    // Synchronize to ensure all data is loaded
+    __syncthreads();
+
+    // Apply Gaussian blur if within valid image region (excluding borders)
+    if (row >= 2 && row < SCALED_SIZE - 2 && col >= 2 && col < SCALED_SIZE - 2) {
+        int sum = 0;
+        for (int k = -2; k <= 2; ++k) {
+            for (int l = -2; l <= 2; ++l) {
+                sum += w[k + 2][l + 2] * sharedMem[ty + k + 2][tx + l + 2];
+            }
+        }
+        #define WEIGHTSUM 273
+        int value = sum / WEIGHTSUM;
+        d_blurred_heatmap[row * SCALED_SIZE + col] = 0x00FF0000 | (value << 24);
+    }
+}
+
+
 __global__ void initHeatmap(int **d_heatmap, int *d_hm, int size)
 {
-    size_t i = threadIdx.x + blockIdx.x * SIZE; 
+    size_t i = threadIdx.x + blockIdx.x * SIZE;
     d_heatmap[i] = d_hm + size*i;
 }
 
@@ -168,16 +194,23 @@ void Ped::Model::updateHeatmapCUDA()
     CHECK_CUDA_ERROR(cudaMemcpy(d_bhm, bhm, scaledHeatmapSize, cudaMemcpyHostToDevice));
 
     fadeHeatmap<<<SIZE, SIZE>>>(d_hm);
-    //CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    // CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     agentCount<<<1, agents.size()>>>(d_hm, d_agents_desired_x, d_agents_desired_y);
-    //CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    // CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
     scaleData<<<SIZE, SIZE>>>(d_hm, d_shm);
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    // CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
-    blur<<<SIZE, SIZE>>>(d_shm, d_bhm);
+    // 1. First fix the kernel launch configuration:
+    dim3 blockDims(16, 16);  // Optimal for shared memory usage
+    dim3 gridDims(
+        (SCALED_SIZE + blockDims.x - 1) / blockDims.x,
+        (SCALED_SIZE + blockDims.y - 1) / blockDims.y
+    );
 
+    // Launch kernel with proper dimensions
+    blur<<<gridDims, blockDims>>>(d_shm, d_bhm);
     CHECK_CUDA_ERROR(cudaMemcpy(hm, d_hm, heatmapSize, cudaMemcpyDeviceToHost));
     CHECK_CUDA_ERROR(cudaMemcpy(shm, d_shm, scaledHeatmapSize, cudaMemcpyDeviceToHost));
     CHECK_CUDA_ERROR(cudaMemcpy(bhm, d_bhm, scaledHeatmapSize, cudaMemcpyDeviceToHost));
