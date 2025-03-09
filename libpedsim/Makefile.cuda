@@ -3,8 +3,8 @@ SOURCES = $(shell echo *.cpp)
 OBJECTS = $(SOURCES:.cpp=.o)
 CUDA_SOURCES = $(shell echo *.cu)
 CUDA_OBJECTS = $(CUDA_SOURCES:.cu=.co)
-CXXFLAGS = -fPIC -shared -lm -fopenmp -march=native
-CUDA_NVCC_FLAGS = --compiler-options -fPIC,-shared -Xcompiler -fopenmp -Xcompiler -march=native
+CXXFLAGS = -fPIC -shared -lm -fopenmp -march=native -g
+CUDA_NVCC_FLAGS = --compiler-options -fPIC,-shared -Xcompiler -fopenmp -Xcompiler -march=native -g -G
 
 # Detect the architecture
 UNAME_S := $(shell uname -m)
