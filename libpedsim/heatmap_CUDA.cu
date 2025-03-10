@@ -175,6 +175,10 @@ void Ped::Model::setupHeatmapCUDA()
     CHECK_CUDA_ERROR(cudaMemcpy(scaled_heatmap, d_scaled_heatmap, scaledHeatmapPointerSize, cudaMemcpyDeviceToHost)); 
     CHECK_CUDA_ERROR(cudaMemcpy(blurred_heatmap, d_blurred_heatmap, scaledHeatmapPointerSize, cudaMemcpyDeviceToHost));
 
+    CHECK_CUDA_ERROR(cudaFree(d_heatmap));
+    CHECK_CUDA_ERROR(cudaFree(d_scaled_heatmap));
+    CHECK_CUDA_ERROR(cudaFree(d_blurred_heatmap));
+    
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 }
 
