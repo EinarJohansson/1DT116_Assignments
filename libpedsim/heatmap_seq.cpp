@@ -7,6 +7,8 @@
 #include <cstdlib>
 #include <iostream>
 #include <cmath>
+#include <chrono>
+
 using namespace std;
 
 // Memory leak check with msvc++
@@ -15,6 +17,7 @@ using namespace std;
 // Sets up the heatmap
 void Ped::Model::setupHeatmapSeq()
 {
+	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 	// int *hm, *shm, *bhm;
 	hm = (int*)calloc(SIZE*SIZE, sizeof(int));
 	shm = (int*)malloc(SCALED_SIZE*SCALED_SIZE*sizeof(int));
@@ -34,6 +37,8 @@ void Ped::Model::setupHeatmapSeq()
 		scaled_heatmap[i] = shm + SCALED_SIZE*i;
 		blurred_heatmap[i] = bhm + SCALED_SIZE*i;
 	}
+	std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+	std::cout << "heatmap creation took " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << " micro seconds" << std::endl;
 }
 
 // Updates the heatmap according to the agent positions
@@ -74,6 +79,7 @@ void Ped::Model::updateHeatmapSeq()
 	}
 
 	// Scale the data for visual representation
+	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 	for (int y = 0; y < SIZE; y++)
 	{
 		for (int x = 0; x < SIZE; x++)
@@ -88,6 +94,8 @@ void Ped::Model::updateHeatmapSeq()
 			}
 		}
 	}
+	std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+	std::cout << "Scaling took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << " milliseconds" << std::endl;
 
 	// Weights for blur filter
 	const int w[5][5] = {
@@ -99,6 +107,7 @@ void Ped::Model::updateHeatmapSeq()
 	};
 
 #define WEIGHTSUM 273
+	begin = std::chrono::steady_clock::now();
 	// Apply gaussian blurfilter		       
 	for (int i = 2; i < SCALED_SIZE - 2; i++)
 	{
@@ -116,6 +125,8 @@ void Ped::Model::updateHeatmapSeq()
 			blurred_heatmap[i][j] = 0x00FF0000 | value << 24;
 		}
 	}
+	end = std::chrono::steady_clock::now();
+	std::cout << "Blurring took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << " milliseconds" << std::endl;
 }
 
 int Ped::Model::getHeatmapSize() const {

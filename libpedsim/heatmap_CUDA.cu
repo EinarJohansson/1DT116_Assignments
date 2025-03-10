@@ -141,6 +141,10 @@ __global__ void initHeatmap(int **d_heatmap, int *d_hm, int size)
 
 void Ped::Model::setupHeatmapCUDA() 
 {
+    cudaEvent_t start_create, stop_create;
+    cudaEventCreate(&start_create);
+    cudaEventCreate(&stop_create);
+    
     int **d_heatmap, **d_scaled_heatmap, **d_blurred_heatmap;
 
     heatmap = (int**)malloc(heatmapPointerSize);
@@ -166,10 +170,12 @@ void Ped::Model::setupHeatmapCUDA()
 	CHECK_CUDA_ERROR(cudaMalloc(&d_agents_desired_x, agentSize * sizeof(int)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_agents_desired_y, agentSize * sizeof(int)));
 
+    cudaEventRecord(start_create);
     // init heatmap
     initHeatmap<<<1, SIZE>>>(d_heatmap, hm, SIZE);
     initHeatmap<<<CELLSIZE, SIZE>>>(d_scaled_heatmap, shm, SCALED_SIZE);
     initHeatmap<<<CELLSIZE, SIZE>>>(d_blurred_heatmap, bhm, SCALED_SIZE);
+    cudaEventRecord(stop_create);
 
     CHECK_CUDA_ERROR(cudaMemcpy(heatmap, d_heatmap, heatmapPointerSize, cudaMemcpyDeviceToHost));
     CHECK_CUDA_ERROR(cudaMemcpy(scaled_heatmap, d_scaled_heatmap, scaledHeatmapPointerSize, cudaMemcpyDeviceToHost)); 
@@ -179,11 +185,23 @@ void Ped::Model::setupHeatmapCUDA()
     CHECK_CUDA_ERROR(cudaFree(d_scaled_heatmap));
     CHECK_CUDA_ERROR(cudaFree(d_blurred_heatmap));
     
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start_create, stop_create);
+    printf("Elapsed time between creation: %f\n", milliseconds);
+    
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 }
 
 void Ped::Model::updateHeatmapCUDA()
 {
+    cudaEvent_t start_scale, stop_scale, start_blur,stop_blur;
+    cudaEventCreate(&start_scale);
+    cudaEventCreate(&stop_scale);
+    cudaEventCreate(&start_blur);
+    cudaEventCreate(&stop_blur);
+
+    float time;
+
     for (size_t i = 0; i < agentSize; i++)
     {
         h_agents_desired_x[i] = agents[i]->getDesiredX();
@@ -193,26 +211,37 @@ void Ped::Model::updateHeatmapCUDA()
 	CHECK_CUDA_ERROR(cudaMemcpy(d_agents_desired_x, h_agents_desired_x, agentSize * sizeof(int), cudaMemcpyHostToDevice));
     CHECK_CUDA_ERROR(cudaMemcpy(d_agents_desired_y, h_agents_desired_y, agentSize * sizeof(int), cudaMemcpyHostToDevice));
 
+    //cudaEventRecord(start);
     fadeHeatmap<<<SIZE, SIZE>>>(d_hm);
-    // CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    // cudaEventRecord(stop);
 
+    cudaEventRecord(start_scale);
     agentCount<<<1, agents.size()>>>(d_hm, d_agents_desired_x, d_agents_desired_y);
-    // CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
     scaleData<<<SIZE, SIZE>>>(d_hm, d_shm);
-    // CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    cudaEventRecord(stop_scale);
+    cudaEventSynchronize(stop_scale);
+	cudaEventElapsedTime(&time, start_scale, stop_scale);
+	cout << "Scale time: " << time << "\n";
 
     // 1. First fix the kernel launch configuration:
     dim3 blockDims(16, 16);  // Optimal for shared memory usage
     dim3 gridDims(
-        (SCALED_SIZE + blockDims.x - 1) / blockDims.x,
-        (SCALED_SIZE + blockDims.y - 1) / blockDims.y
+        (SCALED_SIZE + blockDims.x - 1) / blockDims.x, // ca 321
+        (SCALED_SIZE + blockDims.y - 1) / blockDims.y // ca 321
     );
 
     // Launch kernel with proper dimensions
+    cudaEventRecord(start_blur);
     blur<<<gridDims, blockDims>>>(d_shm, d_bhm);
+    cudaEventRecord(stop_blur);
 
-    // CHECK_CUDA_ERROR(cudaMemcpy(hm, d_hm, heatmapSize, cudaMemcpyDeviceToHost));
-    // CHECK_CUDA_ERROR(cudaMemcpy(shm, d_shm, scaledHeatmapSize, cudaMemcpyDeviceToHost));
     CHECK_CUDA_ERROR(cudaMemcpy(bhm, d_bhm, scaledHeatmapSize, cudaMemcpyDeviceToHost));
+    
+    cudaEventSynchronize(stop_blur);
+    cudaEventElapsedTime(&time, start_blur, stop_blur);
+    
+	cout << "Blur time: " << time << "\n";
+
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+  
 }
