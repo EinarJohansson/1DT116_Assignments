@@ -2,6 +2,8 @@
 #include "ped_model.h"
 #include <stdio.h>
 
+#define SHARED_SIZE 20
+
 #define CHECK_CUDA_ERROR(call)                                              \
     do {                                                                    \
         cudaError_t err = call;                                             \
@@ -59,7 +61,7 @@ __global__ void scaleData(int *d_heatmap, int *d_scaled_heatmap) {
     }
 }
 
-__global__ void blur(int *d_scaled_heatmap, int *d_blurred_heatmap) {   
+__global__ void blur(int *d_scaled_heatmap, int *d_blurred_heatmap) {
     const int w[5][5] = {
         { 1, 4, 7, 4, 1 },
         { 4, 16, 26, 16, 4 },
@@ -67,51 +69,43 @@ __global__ void blur(int *d_scaled_heatmap, int *d_blurred_heatmap) {
         { 4, 16, 26, 16, 4 },
         { 1, 4, 7, 4, 1 }
     };
+    
+    int thread_x = threadIdx.x;
+    int thread_y = threadIdx.y;
 
-    // Calculate thread and block indices
-    int tx = threadIdx.x;
-    int ty = threadIdx.y;
-    int bx = blockIdx.x * blockDim.x;
-    int by = blockIdx.y * blockDim.y;
-
-    // Determine the size of the shared memory area
-    #define SHARED_SIZE (16 + 4) // 16x16 block + 2 halo on each side
     __shared__ int sharedMem[SHARED_SIZE][SHARED_SIZE];
 
-    // Global index
-    int col = bx + tx;
-    int row = by + ty;
+    int column = blockIdx.x * blockDim.x + thread_x;
+    int row = blockIdx.y * blockDim.y + thread_y;
 
     // Load main data into shared memory if within bounds
-    if (row < SCALED_SIZE && col < SCALED_SIZE) {
-        sharedMem[ty + 2][tx + 2] = d_scaled_heatmap[row * SCALED_SIZE + col];
+    if (row < SCALED_SIZE && column < SCALED_SIZE) {
+        sharedMem[thread_y + 2][thread_x + 2] = d_scaled_heatmap[row * SCALED_SIZE + column];
     }
 
-    // Load top and bottom halo
-    if (ty < 2) {
+    if (thread_y < 2) {
         // Top halo (row - 2)
         int halo_row = row - 2;
-        if (halo_row >= 0 && col < SCALED_SIZE) {
-            sharedMem[ty][tx + 2] = d_scaled_heatmap[halo_row * SCALED_SIZE + col];
+        if (halo_row >= 0 && column < SCALED_SIZE) {
+            sharedMem[thread_y][thread_x + 2] = d_scaled_heatmap[halo_row * SCALED_SIZE + column];
         }
         // Bottom halo (row + 2)
         halo_row = row + 2;
-        if (halo_row < SCALED_SIZE && col < SCALED_SIZE) {
-            sharedMem[ty + blockDim.y + 2][tx + 2] = d_scaled_heatmap[halo_row * SCALED_SIZE + col];
+        if (halo_row < SCALED_SIZE && column < SCALED_SIZE) {
+            sharedMem[thread_y + blockDim.y + 2][thread_x + 2] = d_scaled_heatmap[halo_row * SCALED_SIZE + column];
         }
     }
 
-    // Load left and right halo
-    if (tx < 2) {
+    if (thread_x < 2) {
         // Left halo (col - 2)
-        int halo_col = col - 2;
+        int halo_col = column - 2;
         if (halo_col >= 0 && row < SCALED_SIZE) {
-            sharedMem[ty + 2][tx] = d_scaled_heatmap[row * SCALED_SIZE + halo_col];
+            sharedMem[thread_y + 2][thread_x] = d_scaled_heatmap[row * SCALED_SIZE + halo_col];
         }
         // Right halo (col + 2)
-        halo_col = col + 2;
+        halo_col = column + 2;
         if (halo_col < SCALED_SIZE && row < SCALED_SIZE) {
-            sharedMem[ty + 2][tx + blockDim.x + 2] = d_scaled_heatmap[row * SCALED_SIZE + halo_col];
+            sharedMem[thread_y + 2][thread_x + blockDim.x + 2] = d_scaled_heatmap[row * SCALED_SIZE + halo_col];
         }
     }
 
@@ -119,16 +113,16 @@ __global__ void blur(int *d_scaled_heatmap, int *d_blurred_heatmap) {
     __syncthreads();
 
     // Apply Gaussian blur if within valid image region (excluding borders)
-    if (row >= 2 && row < SCALED_SIZE - 2 && col >= 2 && col < SCALED_SIZE - 2) {
+    if (row >= 2 && row < SCALED_SIZE - 2 && column >= 2 && column < SCALED_SIZE - 2) {
         int sum = 0;
         for (int k = -2; k <= 2; ++k) {
             for (int l = -2; l <= 2; ++l) {
-                sum += w[k + 2][l + 2] * sharedMem[ty + k + 2][tx + l + 2];
+                sum += w[k + 2][l + 2] * sharedMem[thread_y + k + 2][thread_x + l + 2];
             }
         }
         #define WEIGHTSUM 273
         int value = sum / WEIGHTSUM;
-        d_blurred_heatmap[row * SCALED_SIZE + col] = 0x00FF0000 | (value << 24);
+        d_blurred_heatmap[row * SCALED_SIZE + column] = 0x00FF0000 | (value << 24);
     }
 }
 
@@ -141,11 +135,7 @@ __global__ void initHeatmap(int **d_heatmap, int *d_hm, int size)
 
 void Ped::Model::setupHeatmapCUDA() 
 {
-    cudaEvent_t start_create, stop_create;
-    cudaEventCreate(&start_create);
-    cudaEventCreate(&stop_create);
-    
-    int **d_heatmap, **d_scaled_heatmap, **d_blurred_heatmap;
+   int **d_heatmap, **d_scaled_heatmap, **d_blurred_heatmap;
 
     heatmap = (int**)malloc(heatmapPointerSize);
 	scaled_heatmap = (int**)malloc(scaledHeatmapPointerSize);
@@ -170,12 +160,10 @@ void Ped::Model::setupHeatmapCUDA()
 	CHECK_CUDA_ERROR(cudaMalloc(&d_agents_desired_x, agentSize * sizeof(int)));
     CHECK_CUDA_ERROR(cudaMalloc(&d_agents_desired_y, agentSize * sizeof(int)));
 
-    cudaEventRecord(start_create);
     // init heatmap
     initHeatmap<<<1, SIZE>>>(d_heatmap, hm, SIZE);
     initHeatmap<<<CELLSIZE, SIZE>>>(d_scaled_heatmap, shm, SCALED_SIZE);
     initHeatmap<<<CELLSIZE, SIZE>>>(d_blurred_heatmap, bhm, SCALED_SIZE);
-    cudaEventRecord(stop_create);
 
     CHECK_CUDA_ERROR(cudaMemcpy(heatmap, d_heatmap, heatmapPointerSize, cudaMemcpyDeviceToHost));
     CHECK_CUDA_ERROR(cudaMemcpy(scaled_heatmap, d_scaled_heatmap, scaledHeatmapPointerSize, cudaMemcpyDeviceToHost)); 
@@ -185,26 +173,11 @@ void Ped::Model::setupHeatmapCUDA()
     CHECK_CUDA_ERROR(cudaFree(d_scaled_heatmap));
     CHECK_CUDA_ERROR(cudaFree(d_blurred_heatmap));
     
-    float milliseconds = 0;
-    cudaEventElapsedTime(&milliseconds, start_create, stop_create);
-    // printf("Elapsed time between creation: %f\n", milliseconds);
-    
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 }
 
 void Ped::Model::updateHeatmapCUDA()
 {
-    //cudaEvent_t start_scale, stop_scale, start_blur,stop_blur, start_total, stop_total;
-/*     cudaEventCreate(&start_scale);
-    cudaEventCreate(&stop_scale);
-    cudaEventCreate(&start_blur);
-    cudaEventCreate(&stop_blur); */
-    //cudaEventCreate(&start_total);
-    //cudaEventCreate(&stop_total);
-
-    float time;
-
-    //cudaEventRecord(start_total);
 
     for (size_t i = 0; i < agentSize; i++)
     {
@@ -214,53 +187,24 @@ void Ped::Model::updateHeatmapCUDA()
 
     dim3 blockDims(16, 16);  // Optimal for shared memory usage
     dim3 gridDims(
-        (SCALED_SIZE + blockDims.x - 1) / blockDims.x, // ca 321
-        (SCALED_SIZE + blockDims.y - 1) / blockDims.y // ca 321
+        (SCALED_SIZE + blockDims.x - 1) / blockDims.x,
+        (SCALED_SIZE + blockDims.y - 1) / blockDims.y
     );
 
 	cudaMemcpyAsync(d_agents_desired_x, h_agents_desired_x, agentSize * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpyAsync(d_agents_desired_y, h_agents_desired_y, agentSize * sizeof(int), cudaMemcpyHostToDevice);
 
-    //cudaEventRecord(start);
+
     fadeHeatmap<<<SIZE, SIZE>>>(d_hm);
-    // CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-    // cudaEventRecord(stop);
 
-    // cudaEventRecord(start_scale);
     agentCount<<<1, agents.size()>>>(d_hm, d_agents_desired_x, d_agents_desired_y);
-    // CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
     scaleData<<<SIZE, SIZE>>>(d_hm, d_shm);
-    // CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-    /*cudaEventRecord(stop_scale);
-    cudaEventSynchronize(stop_scale);
-	cudaEventElapsedTime(&time, start_scale, stop_scale);
-	cout << "Scale time: " << time << "\n";
- */
 
-
-    //cudaEventRecord(start_blur);
     blur<<<gridDims, blockDims>>>(d_shm, d_bhm);
-    // CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
-    //cudaEventRecord(stop_blur);
-
-    
-    
-    // cudaEventSynchronize(stop_blur);
-    // cudaEventElapsedTime(&time, start_blur, stop_blur);
-    
-	// cout << "Blur time: " << time << "\n";
-
-   //  CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-
-    
-
-    /*cudaEventRecord(stop_total);
-    cudaEventElapsedTime(&time, start_total, stop_total);
-    cout << "total GPU time: " << time << "\n";*/
 }
-
 void Ped::Model::cuda_fin()
 {
+    //Final Memory Transfer after GPU and CPU are done
     cudaMemcpyAsync(bhm, d_bhm, scaledHeatmapSize, cudaMemcpyDeviceToHost);
 }
