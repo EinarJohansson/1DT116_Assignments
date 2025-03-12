@@ -253,7 +253,7 @@ void Ped::Model::tick()
         std::vector<Ped::Tagent *> *quadrants[REGIONS] = {&agentsQ1, &agentsQ2, &agentsQ3, &agentsQ4};
         int thread_id;
         auto start = high_resolution_clock::now();
-        // updateHeatmapCUDA();
+        updateHeatmapCUDA();
         auto stop = high_resolution_clock::now();
         auto duration = duration_cast<microseconds>(stop - start);
         
@@ -270,8 +270,8 @@ void Ped::Model::tick()
         // Tilldela agenter till kvadrant vektorerna.
         split(temp);
         temp.clear();
-        updateHeatmapSeq();
-        //cuda_fin();
+        //updateHeatmapSeq();
+        cuda_fin();
         break;
     }
 	case VECTOR: {
