@@ -38,7 +38,7 @@ void Ped::Model::setupHeatmapSeq()
 		blurred_heatmap[i] = bhm + SCALED_SIZE*i;
 	}
 	std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-	std::cout << "heatmap creation took " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << " micro seconds" << std::endl;
+	// std::cout << "heatmap creation took " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << " micro seconds" << std::endl;
 }
 
 // Updates the heatmap according to the agent positions
@@ -95,7 +95,7 @@ void Ped::Model::updateHeatmapSeq()
 		}
 	}
 	std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-	std::cout << "Scaling took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << " milliseconds" << std::endl;
+	// std::cout << "Scaling took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << " milliseconds" << std::endl;
 
 	// Weights for blur filter
 	const int w[5][5] = {
@@ -126,7 +126,7 @@ void Ped::Model::updateHeatmapSeq()
 		}
 	}
 	end = std::chrono::steady_clock::now();
-	std::cout << "Blurring took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << " milliseconds" << std::endl;
+	// std::cout << "Blurring took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << " milliseconds" << std::endl;
 }
 
 int Ped::Model::getHeatmapSize() const {

@@ -118,6 +118,7 @@ namespace Ped{
 		// CUDA
 		void setupHeatmapCUDA();
 		void updateHeatmapCUDA();
+		void cuda_fin();
 	};
 }
 #endif

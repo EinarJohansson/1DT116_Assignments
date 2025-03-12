@@ -187,20 +187,24 @@ void Ped::Model::setupHeatmapCUDA()
     
     float milliseconds = 0;
     cudaEventElapsedTime(&milliseconds, start_create, stop_create);
-    printf("Elapsed time between creation: %f\n", milliseconds);
+    // printf("Elapsed time between creation: %f\n", milliseconds);
     
     CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 }
 
 void Ped::Model::updateHeatmapCUDA()
 {
-    cudaEvent_t start_scale, stop_scale, start_blur,stop_blur;
-    cudaEventCreate(&start_scale);
+    //cudaEvent_t start_scale, stop_scale, start_blur,stop_blur, start_total, stop_total;
+/*     cudaEventCreate(&start_scale);
     cudaEventCreate(&stop_scale);
     cudaEventCreate(&start_blur);
-    cudaEventCreate(&stop_blur);
+    cudaEventCreate(&stop_blur); */
+    //cudaEventCreate(&start_total);
+    //cudaEventCreate(&stop_total);
 
     float time;
+
+    //cudaEventRecord(start_total);
 
     for (size_t i = 0; i < agentSize; i++)
     {
@@ -208,40 +212,55 @@ void Ped::Model::updateHeatmapCUDA()
         h_agents_desired_y[i] = agents[i]->getDesiredY();
     }
 
-	CHECK_CUDA_ERROR(cudaMemcpy(d_agents_desired_x, h_agents_desired_x, agentSize * sizeof(int), cudaMemcpyHostToDevice));
-    CHECK_CUDA_ERROR(cudaMemcpy(d_agents_desired_y, h_agents_desired_y, agentSize * sizeof(int), cudaMemcpyHostToDevice));
-
-    //cudaEventRecord(start);
-    fadeHeatmap<<<SIZE, SIZE>>>(d_hm);
-    // cudaEventRecord(stop);
-
-    cudaEventRecord(start_scale);
-    agentCount<<<1, agents.size()>>>(d_hm, d_agents_desired_x, d_agents_desired_y);
-    scaleData<<<SIZE, SIZE>>>(d_hm, d_shm);
-    cudaEventRecord(stop_scale);
-    cudaEventSynchronize(stop_scale);
-	cudaEventElapsedTime(&time, start_scale, stop_scale);
-	cout << "Scale time: " << time << "\n";
-
-    // 1. First fix the kernel launch configuration:
     dim3 blockDims(16, 16);  // Optimal for shared memory usage
     dim3 gridDims(
         (SCALED_SIZE + blockDims.x - 1) / blockDims.x, // ca 321
         (SCALED_SIZE + blockDims.y - 1) / blockDims.y // ca 321
     );
 
-    // Launch kernel with proper dimensions
-    cudaEventRecord(start_blur);
+	cudaMemcpyAsync(d_agents_desired_x, h_agents_desired_x, agentSize * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_agents_desired_y, h_agents_desired_y, agentSize * sizeof(int), cudaMemcpyHostToDevice);
+
+    //cudaEventRecord(start);
+    fadeHeatmap<<<SIZE, SIZE>>>(d_hm);
+    // CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    // cudaEventRecord(stop);
+
+    // cudaEventRecord(start_scale);
+    agentCount<<<1, agents.size()>>>(d_hm, d_agents_desired_x, d_agents_desired_y);
+    // CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    scaleData<<<SIZE, SIZE>>>(d_hm, d_shm);
+    // CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+    /*cudaEventRecord(stop_scale);
+    cudaEventSynchronize(stop_scale);
+	cudaEventElapsedTime(&time, start_scale, stop_scale);
+	cout << "Scale time: " << time << "\n";
+ */
+
+
+    //cudaEventRecord(start_blur);
     blur<<<gridDims, blockDims>>>(d_shm, d_bhm);
-    cudaEventRecord(stop_blur);
+    // CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
-    CHECK_CUDA_ERROR(cudaMemcpy(bhm, d_bhm, scaledHeatmapSize, cudaMemcpyDeviceToHost));
-    
-    cudaEventSynchronize(stop_blur);
-    cudaEventElapsedTime(&time, start_blur, stop_blur);
-    
-	cout << "Blur time: " << time << "\n";
+    //cudaEventRecord(stop_blur);
 
-    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
-  
+    
+    
+    // cudaEventSynchronize(stop_blur);
+    // cudaEventElapsedTime(&time, start_blur, stop_blur);
+    
+	// cout << "Blur time: " << time << "\n";
+
+   //  CHECK_CUDA_ERROR(cudaDeviceSynchronize());
+
+    
+
+    /*cudaEventRecord(stop_total);
+    cudaEventElapsedTime(&time, start_total, stop_total);
+    cout << "total GPU time: " << time << "\n";*/
+}
+
+void Ped::Model::cuda_fin()
+{
+    cudaMemcpyAsync(bhm, d_bhm, scaledHeatmapSize, cudaMemcpyDeviceToHost);
 }

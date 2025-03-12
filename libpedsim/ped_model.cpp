@@ -13,6 +13,8 @@
 #include <algorithm>
 #include <omp.h>
 #include <thread>
+#include <chrono>
+using namespace std::chrono;
 
 #ifdef __arm__
 #include <arm_neon.h>
@@ -250,9 +252,16 @@ void Ped::Model::tick()
     {
         std::vector<Ped::Tagent *> *quadrants[REGIONS] = {&agentsQ1, &agentsQ2, &agentsQ3, &agentsQ4};
         int thread_id;
-
+        auto start = high_resolution_clock::now();
+        // updateHeatmapCUDA();
+        auto stop = high_resolution_clock::now();
+        auto duration = duration_cast<microseconds>(stop - start);
+        
+        // cout << "Time taken by function: "
+        //    << duration.count() << " microseconds" << endl;
+        
         omp_set_num_threads(CORES);
-#pragma omp parallel private(thread_id)
+        #pragma omp parallel private(thread_id)
         {
             thread_id = omp_get_thread_num();
             // Flytta alla agenter inom en kvadrant.
@@ -261,7 +270,8 @@ void Ped::Model::tick()
         // Tilldela agenter till kvadrant vektorerna.
         split(temp);
         temp.clear();
-        updateHeatmapCUDA();
+        updateHeatmapSeq();
+        //cuda_fin();
         break;
     }
 	case VECTOR: {
